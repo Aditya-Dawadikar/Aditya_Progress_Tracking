@@ -54,13 +54,20 @@ if _railway_domain:
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 CSRF_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_SECURE = not DEBUG
-SECURE_SSL_REDIRECT = not DEBUG
 
-# HSTS is deliberately left unset: it's a long-lived browser-side commitment
-# ("serious, irreversible problems" per Django's own check) that isn't worth
-# it for a single-user personal tool.
+# Deliberately NOT setting SECURE_SSL_REDIRECT: Railway's healthcheck
+# prober connects to the container over plain HTTP internally (before
+# the deployment goes live, so there's no edge TLS terminator in front of
+# it yet) and doesn't follow redirects. Forcing a redirect here made every
+# healthcheck get a 301 instead of 200 and the deploy never went healthy.
+# Real end-user traffic is already HTTPS-only via Railway's edge.
+#
+# HSTS is deliberately left unset too: it's a long-lived browser-side
+# commitment ("serious, irreversible problems" per Django's own check)
+# that isn't worth it for a single-user personal tool.
 SILENCED_SYSTEM_CHECKS = [
     "security.W004",  # HSTS: see note above.
+    "security.W008",  # SSL redirect: see note above.
     "mail.E001",  # App never sends email; console backend is fine as-is.
 ]
 
