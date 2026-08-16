@@ -1,0 +1,35 @@
+{% extends "tracker/base.html" %}
+{% block title %}Test Plans — LeetCode Performance Tracker{% endblock %}
+{% block content %}
+<h1>Test Plans</h1>
+<p class="muted">Curriculum generated externally (e.g. by ChatGPT) and imported as JSON. This becomes the assessment history.</p>
+
+<div class="panel">
+  <table>
+    <thead>
+      <tr>
+        <th>Plan</th>
+        <th>Scheduled</th>
+        <th>Status</th>
+        <th class="text-right">Problems</th>
+        <th class="text-right">Medium/Hard</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for plan in plans %}
+      <tr>
+        <td><a href="{{ plan.get_absolute_url }}">{{ plan.name }}</a></td>
+        <td>{{ plan.scheduled_date|default:"—" }}</td>
+        <td>{{ plan.get_status_display }}</td>
+        <td class="text-right">{{ plan.problem_count }}</td>
+        <td class="text-right">{{ plan.medium_count }}/{{ plan.hard_count }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="muted">No test plans imported yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<a class="btn" href="{% url 'tracker:test_plan_import' %}">Import Test Plan JSON</a>
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "tracker/base.html" %}
+{% block title %}Problems — LeetCode Performance Tracker{% endblock %}
+{% block content %}
+<h1>Problem Catalog</h1>
+
+<div class="panel">
+  <form method="get" class="field-row">
+    <div class="field">
+      <label for="q">Search</label>
+      <input type="text" id="q" name="q" value="{{ query }}" placeholder="Title or #">
+    </div>
+    <div class="field">
+      <label for="difficulty">Difficulty</label>
+      <select id="difficulty" name="difficulty">
+        <option value="">All</option>
+        {% for value, label in difficulty_choices %}
+        <option value="{{ value }}" {% if difficulty == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="pattern">Pattern</label>
+      <select id="pattern" name="pattern">
+        <option value="">All</option>
+        {% for p in patterns %}
+        <option value="{{ p.id }}" {% if pattern_id == p.id|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label>&nbsp;</label>
+      <button type="submit">Filter</button>
+    </div>
+  </form>
+</div>
+
+<div class="panel">
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Title</th>
+        <th>Difficulty</th>
+        <th>Primary Pattern</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for problem in problems %}
+      <tr>
+        <td>{{ problem.leetcode_number|default:"—" }}</td>
+        <td>{{ problem.title }}</td>
+        <td><span class="badge badge-{{ problem.difficulty }}">{{ problem.get_difficulty_display }}</span></td>
+        <td>{{ problem.primary_pattern }}</td>
+        <td><a href="{% url 'tracker:problem_edit' problem.pk %}">Edit</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="muted">No problems match.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<a class="btn" href="{% url 'tracker:problem_create' %}">Add Problem</a>
+{% endblock %}

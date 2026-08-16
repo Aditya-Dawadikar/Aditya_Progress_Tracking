@@ -1,0 +1,32 @@
+{% extends "tracker/base.html" %}
+{% block title %}Tests — LeetCode Performance Tracker{% endblock %}
+{% block content %}
+<h1>Tests</h1>
+
+<div class="panel">
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Date</th>
+        <th>Status</th>
+        <th class="text-right">Score</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for test in tests %}
+      <tr>
+        <td><a href="{{ test.get_absolute_url }}">{{ test.name }}</a></td>
+        <td>{{ test.date }}</td>
+        <td>{{ test.get_status_display }}</td>
+        <td class="text-right">{{ test.solved_count }}/{{ test.problem_count }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" class="muted">No tests yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<a class="btn" href="{% url 'tracker:test_create' %}">New Test</a>
+{% endblock %}

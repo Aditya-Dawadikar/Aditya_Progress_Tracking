@@ -1,0 +1,102 @@
+{% extends "tracker/base.html" %}
+{% block title %}{{ test.name }} — LeetCode Performance Tracker{% endblock %}
+{% block content %}
+<h1>{{ test.name }}</h1>
+{% if test.test_plan %}<p class="muted">From test plan: <a href="{{ test.test_plan.get_absolute_url }}">{{ test.test_plan.name }}</a></p>{% endif %}
+
+<div class="panel">
+  <div class="stat-row">
+    <div class="stat">
+      <div class="value">{{ test.solved_count }}/{{ test.problem_count }}</div>
+      <div class="label">Solved</div>
+    </div>
+    <div class="stat">
+      <div class="value">{{ test.medium_count }}</div>
+      <div class="label">Medium</div>
+    </div>
+    <div class="stat">
+      <div class="value">{{ test.hard_count }}</div>
+      <div class="label">Hard</div>
+    </div>
+    <div class="stat">
+      <div class="value">{{ test.get_status_display }}</div>
+      <div class="label">Status</div>
+    </div>
+  </div>
+  <div class="field-row" style="margin-top: 12px;">
+    <a class="btn btn-secondary btn-small" href="{% url 'tracker:test_add_problems' test.pk %}">Add Problems</a>
+    <a class="btn btn-secondary btn-small" href="{% url 'tracker:export_test_attempts_csv' test.pk %}">Export CSV</a>
+    {% if test.status != 'completed' and test.status != 'reviewed' %}
+    <form method="post" action="{% url 'tracker:test_complete' test.pk %}" class="inline-form">
+      {% csrf_token %}
+      <button type="submit" class="btn-small">Mark Test Completed</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<h2>Problems</h2>
+<div class="panel">
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Problem</th>
+        <th>Difficulty</th>
+        <th>Status</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for attempt in attempts %}
+      <tr>
+        <td>{{ attempt.order }}</td>
+        <td>{{ attempt.problem }}</td>
+        <td><span class="badge badge-{{ attempt.problem.difficulty }}">{{ attempt.problem.get_difficulty_display }}</span></td>
+        <td>
+          {% if attempt.status == 'completed' %}
+            <span class="badge badge-good">✓ {% if attempt.solved %}Solved{% endif %}</span>
+          {% elif attempt.status == 'abandoned' %}
+            <span class="badge badge-bad">Abandoned</span>
+          {% elif attempt.status == 'not_started' %}
+            <span class="badge badge-neutral">Not Started</span>
+          {% elif attempt.status == 'paused' %}
+            <span class="badge badge-warn">Paused</span>
+          {% else %}
+            <span class="badge badge-warn">Active — {{ attempt.get_status_display }}</span>
+          {% endif %}
+        </td>
+        <td><a href="{{ attempt.get_absolute_url }}">Open →</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="muted">No problems added yet. <a href="{% url 'tracker:test_add_problems' test.pk %}">Add problems</a> to begin.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if summary %}
+<h2>Assessment Summary</h2>
+<div class="panel">
+  <div class="stat-row">
+    <div class="stat"><div class="value">{{ summary.solved_count }}/{{ summary.problem_count }}</div><div class="label">Solved</div></div>
+    <div class="stat"><div class="value">{{ summary.independent_solve_count }}</div><div class="label">Independent Solves</div></div>
+    <div class="stat"><div class="value">{{ summary.pattern_recognition_pct|default:"—" }}%</div><div class="label">Pattern Recognition</div></div>
+    <div class="stat"><div class="value">{{ summary.first_pass_pct|default:"—" }}%</div><div class="label">First-Pass Acceptance</div></div>
+  </div>
+  <div class="stat-row" style="margin-top: 14px;">
+    <div class="stat"><div class="value">{{ summary.median_understanding|default:"—" }}s</div><div class="label">Median Understanding</div></div>
+    <div class="stat"><div class="value">{{ summary.median_pattern_identification|default:"—" }}s</div><div class="label">Median Pattern Discovery</div></div>
+    <div class="stat"><div class="value">{{ summary.median_pseudocode|default:"—" }}s</div><div class="label">Median Pseudocode</div></div>
+    <div class="stat"><div class="value">{{ summary.median_test_design|default:"—" }}s</div><div class="label">Median Test Design</div></div>
+    <div class="stat"><div class="value">{{ summary.median_implementation|default:"—" }}s</div><div class="label">Median Implementation</div></div>
+    <div class="stat"><div class="value">{{ summary.median_debugging|default:"—" }}s</div><div class="label">Median Debugging</div></div>
+  </div>
+  <div class="stat-row" style="margin-top: 14px;">
+    <div class="stat"><div class="value">{{ summary.test_cases_generated }}</div><div class="label">Test Cases Generated</div></div>
+    <div class="stat"><div class="value">{{ summary.distinct_test_categories }}</div><div class="label">Distinct Categories</div></div>
+    <div class="stat"><div class="value">{{ summary.bug_revealing_test_cases }}</div><div class="label">Bug-Revealing Tests</div></div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

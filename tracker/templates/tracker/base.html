@@ -1,0 +1,31 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}LeetCode Performance Tracker{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'tracker/css/style.css' %}">
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand">LeetCode Performance Tracker</div>
+    <nav>
+      <a href="{% url 'tracker:dashboard' %}">Dashboard</a>
+      <a href="{% url 'tracker:test_plan_list' %}">Test Plans</a>
+      <a href="{% url 'tracker:test_list' %}">Tests</a>
+      <a href="{% url 'tracker:problem_list' %}">Problems</a>
+      <a href="/admin/">Admin</a>
+    </nav>
+  </header>
+  <main>
+    {% if messages %}
+      <ul class="messages">
+        {% for message in messages %}
+          <li>{{ message }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

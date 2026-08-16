@@ -1,0 +1,95 @@
+{% extends "tracker/base.html" %}
+{% block title %}{{ plan.name }} — Test Plan{% endblock %}
+{% block content %}
+<h1>{{ plan.name }}</h1>
+{% if plan.description %}<p class="muted">{{ plan.description }}</p>{% endif %}
+
+<div class="panel">
+  <div class="stat-row">
+    <div class="stat">
+      <div class="value">{{ plan.problem_count }}</div>
+      <div class="label">Problems</div>
+    </div>
+    <div class="stat">
+      <div class="value">{{ plan.medium_count }}</div>
+      <div class="label">Medium</div>
+    </div>
+    <div class="stat">
+      <div class="value">{{ plan.hard_count }}</div>
+      <div class="label">Hard</div>
+    </div>
+    <div class="stat">
+      <div class="value">{{ plan.get_status_display }}</div>
+      <div class="label">Status</div>
+    </div>
+  </div>
+
+  <div class="field-row" style="margin-top: 12px;">
+    {% if plan.status == 'draft' %}
+    <form method="post" action="{% url 'tracker:test_plan_mark_ready' plan.pk %}" class="inline-form">
+      {% csrf_token %}
+      <button type="submit" class="btn-small">Mark Ready</button>
+    </form>
+    {% endif %}
+    {% if plan.status == 'draft' or plan.status == 'ready' %}
+    <form method="post" action="{% url 'tracker:test_plan_start' plan.pk %}" class="inline-form">
+      {% csrf_token %}
+      <button type="submit" class="btn-small">Start Assessment</button>
+    </form>
+    <form method="post" action="{% url 'tracker:test_plan_skip' plan.pk %}" class="inline-form">
+      {% csrf_token %}
+      <button type="submit" class="btn-small btn-secondary">Skip</button>
+    </form>
+    {% endif %}
+    {% if plan.status == 'draft' %}
+    <form method="post" action="{% url 'tracker:test_plan_discard' plan.pk %}" class="inline-form" onsubmit="return confirm('Discard this draft plan?');">
+      {% csrf_token %}
+      <button type="submit" class="btn-small btn-secondary">Discard</button>
+    </form>
+    {% endif %}
+    {% for t in plan.tests.all %}
+    <a class="btn btn-small" href="{{ t.get_absolute_url }}">Go to Test →</a>
+    {% endfor %}
+  </div>
+</div>
+
+<h2>Problems</h2>
+<div class="panel">
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Title</th>
+        <th>Difficulty</th>
+        <th>Novelty</th>
+        {% if plan.reveal_evaluation %}
+        <th>Expected Pattern</th>
+        <th>Selection Reason</th>
+        {% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for pp in plan_problems %}
+      <tr>
+        <td>{{ pp.order }}</td>
+        <td>{{ pp.problem }}</td>
+        <td><span class="badge badge-{{ pp.problem.difficulty }}">{{ pp.problem.get_difficulty_display }}</span></td>
+        <td>{{ pp.get_novelty_display }}</td>
+        {% if plan.reveal_evaluation %}
+        <td>
+          {{ pp.expected_primary_pattern|default:"—" }}
+          {% if pp.expected_secondary_patterns.all %}
+            + {{ pp.expected_secondary_patterns.all|join:", " }}
+          {% endif %}
+        </td>
+        <td class="muted">{{ pp.selection_reason|default:"—" }}</td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if not plan.reveal_evaluation %}
+  <p class="muted" style="margin-top: 10px;">Evaluator metadata (expected patterns, selection reasoning, expected failure modes) stays hidden until the plan is completed or skipped, so it can't leak the answer while you're solving.</p>
+  {% endif %}
+</div>
+{% endblock %}

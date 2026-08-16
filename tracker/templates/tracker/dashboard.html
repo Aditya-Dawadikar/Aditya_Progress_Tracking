@@ -1,0 +1,103 @@
+{% extends "tracker/base.html" %}
+{% block title %}Dashboard — LeetCode Performance Tracker{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+
+{% if latest_test %}
+<div class="panel">
+  <h3>Latest Test</h3>
+  <h2><a href="{{ latest_test.get_absolute_url }}">{{ latest_test.name }}</a></h2>
+  <div class="stat-row">
+    <div class="stat">
+      <div class="value">{{ latest_test.solved_count }}/{{ latest_test.problem_count }}</div>
+      <div class="label">Solved</div>
+    </div>
+    <div class="stat">
+      <div class="value">{{ latest_test.medium_count }}</div>
+      <div class="label">Medium</div>
+    </div>
+    <div class="stat">
+      <div class="value">{{ latest_test.hard_count }}</div>
+      <div class="label">Hard</div>
+    </div>
+    <div class="stat">
+      <div class="value">{{ latest_test.get_status_display }}</div>
+      <div class="label">Status</div>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="panel">
+  <p class="muted">No tests yet. <a href="{% url 'tracker:test_create' %}">Create your first assessment</a>.</p>
+</div>
+{% endif %}
+
+<h2>Recent Tests</h2>
+<div class="panel">
+  {% if recent_tests %}
+  <table>
+    <thead>
+      <tr>
+        <th>Test</th>
+        <th>Date</th>
+        <th>Status</th>
+        <th class="text-right">Score</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for test in recent_tests %}
+      <tr>
+        <td><a href="{{ test.get_absolute_url }}">{{ test.name }}</a></td>
+        <td>{{ test.date }}</td>
+        <td>{{ test.get_status_display }}</td>
+        <td class="text-right">{{ test.solved_count }}/{{ test.problem_count }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No tests recorded yet.</p>
+  {% endif %}
+</div>
+
+<div class="field-row">
+  <a class="btn" href="{% url 'tracker:test_plan_import' %}">Import Test Plan</a>
+  <a class="btn btn-secondary" href="{% url 'tracker:test_create' %}">New Ad-hoc Test</a>
+</div>
+
+{% if recent_plans %}
+<h2>Recent Test Plans</h2>
+<div class="panel">
+  <table>
+    <thead>
+      <tr>
+        <th>Plan</th>
+        <th>Scheduled</th>
+        <th>Status</th>
+        <th class="text-right">Problems</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for plan in recent_plans %}
+      <tr>
+        <td><a href="{{ plan.get_absolute_url }}">{{ plan.name }}</a></td>
+        <td>{{ plan.scheduled_date|default:"—" }}</td>
+        <td>{{ plan.get_status_display }}</td>
+        <td class="text-right">{{ plan.problem_count }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<h2>Export Data</h2>
+<div class="panel field-row">
+  <a class="btn btn-secondary btn-small" href="{% url 'tracker:export_attempts_csv' %}">attempts.csv</a>
+  <a class="btn btn-secondary btn-small" href="{% url 'tracker:export_events_csv' %}">events.csv</a>
+  <a class="btn btn-secondary btn-small" href="{% url 'tracker:export_test_cases_csv' %}">test-cases.csv</a>
+  <a class="btn btn-secondary btn-small" href="{% url 'tracker:export_failures_csv' %}">failures.csv</a>
+  <a class="btn btn-secondary btn-small" href="{% url 'tracker:export_tests_csv' %}">tests.csv</a>
+  <a class="btn btn-secondary btn-small" href="{% url 'tracker:export_problems_csv' %}">problems.csv</a>
+</div>
+{% endblock %}

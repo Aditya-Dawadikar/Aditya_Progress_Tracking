@@ -1,0 +1,121 @@
+{% extends "tracker/base.html" %}
+{% block title %}Add Problems — {{ test.name }}{% endblock %}
+{% block content %}
+<h1>Add Problems — {{ test.name }}</h1>
+<p class="muted">Select problems from the catalog. Already-added problems are hidden from this list.</p>
+
+<div class="panel">
+  <div class="stat-row">
+    <div class="stat">
+      <div class="value" id="count-total">0</div>
+      <div class="label">Selected</div>
+    </div>
+    <div class="stat">
+      <div class="value" id="count-medium">0</div>
+      <div class="label">Medium</div>
+    </div>
+    <div class="stat">
+      <div class="value" id="count-hard">0</div>
+      <div class="label">Hard</div>
+    </div>
+    <div class="stat">
+      <div class="value" id="count-ratio">—</div>
+      <div class="label">Medium / Hard split</div>
+    </div>
+  </div>
+  <p id="ratio-warning" class="badge badge-warn" style="display:none;">Target distribution is 80% Medium / 20% Hard</p>
+</div>
+
+<form method="get" class="panel field-row">
+  <div class="field">
+    <label for="difficulty">Difficulty</label>
+    <select id="difficulty" name="difficulty">
+      <option value="">All</option>
+      {% for value, label in difficulty_choices %}
+      <option value="{{ value }}" {% if difficulty == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="pattern">Pattern</label>
+    <select id="pattern" name="pattern">
+      <option value="">All</option>
+      {% for p in patterns %}
+      <option value="{{ p.id }}" {% if pattern_id == p.id|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label>&nbsp;</label>
+    <button type="submit">Filter</button>
+  </div>
+</form>
+
+<form method="post" id="add-problems-form">
+  {% csrf_token %}
+  <div class="panel">
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>#</th>
+          <th>Title</th>
+          <th>Difficulty</th>
+          <th>Pattern</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for problem in problems %}
+        <tr>
+          <td><input type="checkbox" name="problem_id" value="{{ problem.pk }}" class="problem-checkbox" data-difficulty="{{ problem.difficulty }}"></td>
+          <td>{{ problem.leetcode_number|default:"—" }}</td>
+          <td>{{ problem.title }}</td>
+          <td><span class="badge badge-{{ problem.difficulty }}">{{ problem.get_difficulty_display }}</span></td>
+          <td>{{ problem.primary_pattern }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="muted">No problems match this filter.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <button type="submit">Add Selected Problems</button>
+  <a class="btn btn-secondary" href="{{ test.get_absolute_url }}">Done — Go to Test</a>
+</form>
+
+<script>
+(function () {
+  var boxes = document.querySelectorAll('.problem-checkbox');
+  var total = document.getElementById('count-total');
+  var medium = document.getElementById('count-medium');
+  var hard = document.getElementById('count-hard');
+  var ratio = document.getElementById('count-ratio');
+  var warning = document.getElementById('ratio-warning');
+
+  function update() {
+    var m = 0, h = 0;
+    boxes.forEach(function (b) {
+      if (b.checked) {
+        if (b.dataset.difficulty === 'medium') m++;
+        else h++;
+      }
+    });
+    var t = m + h;
+    total.textContent = t;
+    medium.textContent = m;
+    hard.textContent = h;
+    if (t === 0) {
+      ratio.textContent = '—';
+      warning.style.display = 'none';
+      return;
+    }
+    var pctMedium = Math.round((m / t) * 100);
+    ratio.textContent = pctMedium + '% / ' + (100 - pctMedium) + '%';
+    warning.style.display = (pctMedium < 70 || pctMedium > 90) ? 'inline-block' : 'none';
+  }
+
+  boxes.forEach(function (b) { b.addEventListener('change', update); });
+  update();
+})();
+</script>
+{% endblock %}

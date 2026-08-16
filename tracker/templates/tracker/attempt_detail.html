@@ -1,0 +1,320 @@
+{% extends "tracker/base.html" %}
+{% load static %}
+{% block title %}{{ attempt.problem }} — {{ test.name }}{% endblock %}
+{% block content %}
+<p class="muted"><a href="{{ test.get_absolute_url }}">← {{ test.name }}</a> · Problem {{ position }} / {{ total }}</p>
+
+<h1>
+  {{ attempt.problem }}
+  <span class="badge badge-{{ attempt.problem.difficulty }}">{{ attempt.problem.get_difficulty_display }}</span>
+</h1>
+{% if attempt.problem.leetcode_url %}
+<p><a href="{{ attempt.problem.leetcode_url }}" target="_blank" rel="noopener">Open on LeetCode →</a></p>
+{% endif %}
+
+{% if not reveal %}
+{# ------------------------------------------------------------------ #}
+{# ACTIVE ASSESSMENT — focused, no analytics, no answer key           #}
+{# ------------------------------------------------------------------ #}
+
+<div class="panel">
+  <h3>Current Phase</h3>
+  {% if attempt.status == 'not_started' %}
+    <h2>Not Started</h2>
+    <form method="post" action="{% url 'tracker:attempt_start' attempt.pk %}">
+      {% csrf_token %}
+      <button type="submit">Start Problem</button>
+    </form>
+  {% elif attempt.status == 'paused' %}
+    <h2>PAUSED</h2>
+    <p class="muted">Was in: {{ attempt.get_paused_from_status_display|default:attempt.paused_from_status }}</p>
+    <form method="post" action="{% url 'tracker:attempt_resume' attempt.pk %}">
+      {% csrf_token %}
+      <button type="submit">Resume</button>
+    </form>
+  {% else %}
+    <h2>{{ attempt.get_status_display|upper }}</h2>
+    <div class="phase-timer" style="font-family: var(--font-mono); font-size: 32px; font-weight: 700;"
+         data-baseline-seconds="{{ attempt.current_phase_baseline_seconds }}"
+         data-phase-started-at="{{ attempt.phase_started_at.isoformat }}">00:00</div>
+
+    <div class="field-row" style="margin-top: 16px;">
+      {% if attempt.status == 'reading' and not understood %}
+      <form method="post" action="{% url 'tracker:attempt_understood' attempt.pk %}" class="inline-form">
+        {% csrf_token %}
+        <button type="submit" class="btn-small">I Understand the Problem</button>
+      </form>
+      {% endif %}
+
+      {% if attempt.status == 'reading' %}
+      <form method="post" action="{% url 'tracker:attempt_start_pseudocode' attempt.pk %}" class="inline-form">
+        {% csrf_token %}
+        <button type="submit" class="btn-small">Start Pseudocode</button>
+      </form>
+      {% elif attempt.status == 'pseudocode' %}
+      <form method="post" action="{% url 'tracker:attempt_start_test_design' attempt.pk %}" class="inline-form">
+        {% csrf_token %}
+        <button type="submit" class="btn-small">Start Test Design</button>
+      </form>
+      {% elif attempt.status == 'test_design' %}
+      <form method="post" action="{% url 'tracker:attempt_start_implementation' attempt.pk %}" class="inline-form">
+        {% csrf_token %}
+        <button type="submit" class="btn-small">Start Implementation</button>
+      </form>
+      {% endif %}
+
+      <form method="post" action="{% url 'tracker:attempt_pause' attempt.pk %}" class="inline-form">
+        {% csrf_token %}
+        <button type="submit" class="btn-small btn-secondary">Pause</button>
+      </form>
+      <form method="post" action="{% url 'tracker:attempt_hint' attempt.pk %}" class="inline-form">
+        {% csrf_token %}
+        <button type="submit" class="btn-small btn-secondary">+1 Hint ({{ attempt.hints_used }})</button>
+      </form>
+    </div>
+  {% endif %}
+</div>
+
+{% if attempt.is_active_phase %}
+<div class="panel">
+  <h3>Pattern Identified</h3>
+  {% if attempt.predicted_primary_pattern %}
+  <p class="muted">Current prediction: <strong>{{ attempt.predicted_primary_pattern }}</strong>{% if attempt.predicted_secondary_patterns.all %} + {{ attempt.predicted_secondary_patterns.all|join:", " }}{% endif %}</p>
+  {% endif %}
+  <form method="post" action="{% url 'tracker:attempt_pattern_identified' attempt.pk %}" class="field-row" style="align-items: flex-end;">
+    {% csrf_token %}
+    <div class="field">
+      <label>{{ pattern_identified_form.predicted_primary_pattern.label }}</label>
+      {{ pattern_identified_form.predicted_primary_pattern }}
+    </div>
+    <div class="field">
+      <label>{{ pattern_identified_form.predicted_secondary_patterns.label }}</label>
+      {{ pattern_identified_form.predicted_secondary_patterns }}
+    </div>
+    <div class="field">
+      <button type="submit" class="btn-small">Save Prediction</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+{% if attempt.status == 'test_design' or attempt.status == 'implementation' or attempt.status == 'debugging' %}
+<div class="panel">
+  <h3>Test Cases Generated ({{ attempt.test_cases.count }})</h3>
+  {% if attempt.test_cases.all %}
+  <table>
+    <thead><tr><th>Category</th><th>Description</th><th>Found Bug</th><th></th></tr></thead>
+    <tbody>
+      {% for tc in attempt.test_cases.all %}
+      <tr>
+        <td>{{ tc.get_category_display }}</td>
+        <td>{{ tc.description }}</td>
+        <td>{% if tc.did_find_bug %}<span class="badge badge-bad">Yes</span>{% else %}—{% endif %}</td>
+        <td>
+          <form method="post" action="{% url 'tracker:test_case_delete' attempt.pk tc.pk %}" class="inline-form">
+            {% csrf_token %}
+            <button type="submit" class="btn-small btn-secondary">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  <form method="post" action="{% url 'tracker:attempt_add_test_case' attempt.pk %}" class="field-row" style="align-items: flex-end;">
+    {% csrf_token %}
+    <div class="field"><label>Category</label>{{ test_case_form.category }}</div>
+    <div class="field" style="flex: 1;"><label>Description</label>{{ test_case_form.description }}</div>
+    <div class="field"><label>Expected Behavior</label>{{ test_case_form.expected_behavior }}</div>
+    <div class="field"><label>Found Bug?</label>{{ test_case_form.did_find_bug }}</div>
+    <div class="field"><button type="submit" class="btn-small">+ Add Test Case</button></div>
+  </form>
+</div>
+{% endif %}
+
+{% if attempt.status == 'implementation' or attempt.status == 'debugging' %}
+<div class="panel">
+  <h3>Record Submission</h3>
+  <form method="post" action="{% url 'tracker:attempt_submit' attempt.pk %}" class="field-row" style="align-items: flex-end;">
+    {% csrf_token %}
+    <div class="field"><label>Result</label>{{ submit_form.result }}</div>
+    <div class="field"><label>Confidence (if accepted)</label>{{ submit_form.confidence }}</div>
+    <div class="field"><button type="submit" class="btn-small">Record Submission</button></div>
+  </form>
+
+  {% if attempt.status == 'debugging' %}
+  <h3 style="margin-top: 20px;">Add Failure Analysis</h3>
+  <form method="post" action="{% url 'tracker:attempt_add_failure_analysis' attempt.pk %}" class="field-row" style="align-items: flex-end;">
+    {% csrf_token %}
+    <div class="field"><label>Failure Type</label>{{ failure_form.failure_type }}</div>
+    <div class="field" style="flex: 1;"><label>Description</label>{{ failure_form.description }}</div>
+    <div class="field"><button type="submit" class="btn-small">Add Failure Analysis</button></div>
+  </form>
+  {% if attempt.failures.all %}
+  <table style="margin-top: 10px;">
+    <thead><tr><th>#</th><th>Result</th><th>Failure Type</th><th>Description</th></tr></thead>
+    <tbody>
+      {% for f in attempt.failures.all %}
+      <tr>
+        <td>{{ f.submission_number }}</td>
+        <td>{{ f.get_result_display }}</td>
+        <td>{{ f.get_failure_type_display|default:"—" }}</td>
+        <td>{{ f.description }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="panel">
+  <div class="stat-row">
+    <div class="stat"><div class="value">{{ attempt.test_cases.count }}</div><div class="label">Test Cases Generated</div></div>
+    <div class="stat"><div class="value">{{ failed_submission_count }}</div><div class="label">Failed Submissions</div></div>
+  </div>
+</div>
+
+{% if attempt.is_active_phase or attempt.status == 'paused' %}
+<div class="panel">
+  <h3>Abandon</h3>
+  <form method="post" action="{% url 'tracker:attempt_abandon' attempt.pk %}" class="field-row" style="align-items: flex-end;">
+    {% csrf_token %}
+    <div class="field"><label>Confidence</label>{{ abandon_form.confidence }}</div>
+    <div class="field" style="flex: 1;"><label>Notes</label>{{ abandon_form.notes }}</div>
+    <div class="field"><button type="submit" class="btn-small btn-secondary">Abandon Attempt</button></div>
+  </form>
+</div>
+{% endif %}
+
+{% else %}
+{# ------------------------------------------------------------------ #}
+{# REVIEW MODE — unlocked once completed or abandoned                 #}
+{# ------------------------------------------------------------------ #}
+
+<div class="panel">
+  {% if attempt.status == 'completed' %}
+  <span class="badge badge-good">Solved{% if attempt.first_pass_accepted %} — First Pass{% endif %}</span>
+  {% else %}
+  <span class="badge badge-bad">Abandoned</span>
+  {% endif %}
+
+  <h3 style="margin-top: 16px;">Timing</h3>
+  <div class="stat-row">
+    <div class="stat"><div class="value">{{ understanding_seconds|default:"—" }}s</div><div class="label">Understanding</div></div>
+    <div class="stat"><div class="value">{{ pattern_identification_seconds|default:"—" }}s</div><div class="label">Pattern ID</div></div>
+    <div class="stat"><div class="value">{{ attempt.pseudocode_seconds }}s</div><div class="label">Pseudocode</div></div>
+    <div class="stat"><div class="value">{{ attempt.test_design_seconds }}s</div><div class="label">Test Design</div></div>
+    <div class="stat"><div class="value">{{ attempt.implementation_seconds }}s</div><div class="label">Implementation</div></div>
+    <div class="stat"><div class="value">{{ attempt.debugging_seconds }}s</div><div class="label">Debugging</div></div>
+  </div>
+  <div class="stat-row" style="margin-top: 10px;">
+    <div class="stat"><div class="value">{{ attempt.total_active_seconds }}s</div><div class="label">Total Active</div></div>
+    <div class="stat"><div class="value">{{ attempt.total_wall_clock_seconds }}s</div><div class="label">Total Wall-Clock</div></div>
+    <div class="stat"><div class="value">{{ attempt.paused_seconds }}s</div><div class="label">Paused</div></div>
+    <div class="stat"><div class="value">{{ attempt.hints_used }}</div><div class="label">Hints Used</div></div>
+    <div class="stat"><div class="value">{{ submission_count }}</div><div class="label">Submissions</div></div>
+  </div>
+</div>
+
+<div class="panel">
+  <h3>Pattern Recognition</h3>
+  <div class="grid-2">
+    <div>
+      <div class="muted">Your Prediction</div>
+      <p>{{ attempt.predicted_primary_pattern|default:"Not identified" }}{% if attempt.predicted_secondary_patterns.all %} + {{ attempt.predicted_secondary_patterns.all|join:", " }}{% endif %}</p>
+    </div>
+    {% if plan_problem %}
+    <div>
+      <div class="muted">Expected</div>
+      <p>{{ plan_problem.expected_primary_pattern|default:"—" }}{% if plan_problem.expected_secondary_patterns.all %} + {{ plan_problem.expected_secondary_patterns.all|join:", " }}{% endif %}</p>
+    </div>
+    {% else %}
+    <div>
+      <div class="muted">Catalog Pattern</div>
+      <p>{{ attempt.problem.primary_pattern }}{% if attempt.problem.secondary_patterns.all %} + {{ attempt.problem.secondary_patterns.all|join:", " }}{% endif %}</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <form method="post" action="{% url 'tracker:attempt_pattern_review' attempt.pk %}" class="field-row" style="margin-top: 12px; align-items: flex-end;">
+    {% csrf_token %}
+    <div class="field">
+      <label>{{ pattern_review_form.pattern_identification_result.label }}</label>
+      {{ pattern_review_form.pattern_identification_result }}
+    </div>
+    <div class="field"><button type="submit" class="btn-small">Save</button></div>
+  </form>
+
+  {% if plan_problem.selection_reason %}
+  <h3 style="margin-top: 16px;">Why This Problem Was Selected</h3>
+  <p class="muted">{{ plan_problem.selection_reason }}</p>
+  {% endif %}
+
+  {% if plan_problem.expected_failure_modes.all %}
+  <h3 style="margin-top: 16px;">Expected Failure Modes</h3>
+  <ul>
+    {% for efm in plan_problem.expected_failure_modes.all %}<li>{{ efm.description }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if attempt.failures.all %}
+  <h3 style="margin-top: 16px;">Actual Failures</h3>
+  <table>
+    <thead><tr><th>#</th><th>Result</th><th>Failure Type</th><th>Description</th></tr></thead>
+    <tbody>
+      {% for f in attempt.failures.all %}
+      <tr>
+        <td>{{ f.submission_number }}</td>
+        <td>{{ f.get_result_display }}</td>
+        <td>{{ f.get_failure_type_display|default:"—" }}</td>
+        <td>{{ f.description }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+
+<div class="panel">
+  <h3>Test Cases ({{ attempt.test_cases.count }})</h3>
+  {% if attempt.test_cases.all %}
+  <table>
+    <thead><tr><th>Category</th><th>Description</th><th>Found Bug</th></tr></thead>
+    <tbody>
+      {% for tc in attempt.test_cases.all %}
+      <tr>
+        <td>{{ tc.get_category_display }}</td>
+        <td>{{ tc.description }}</td>
+        <td>{% if tc.did_find_bug %}<span class="badge badge-bad">Yes</span>{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No test cases recorded.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="panel">
+  <h3>Event Timeline</h3>
+  <table>
+    <thead><tr><th>Time</th><th>Event</th><th>Metadata</th></tr></thead>
+    <tbody>
+      {% for e in events %}
+      <tr>
+        <td>{{ e.timestamp|date:"H:i:s" }}</td>
+        <td>{{ e.get_event_type_display }}</td>
+        <td class="muted">{{ e.metadata }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="3" class="muted">No events yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script src="{% static 'tracker/js/timer.js' %}"></script>
+{% endblock %}

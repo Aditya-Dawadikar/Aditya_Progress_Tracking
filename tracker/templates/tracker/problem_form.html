@@ -1,0 +1,56 @@
+{% extends "tracker/base.html" %}
+{% block title %}{% if is_new %}Add Problem{% else %}Edit Problem{% endif %}{% endblock %}
+{% block content %}
+<h1>{% if is_new %}Add Problem{% else %}Edit {{ problem }}{% endif %}</h1>
+
+<div class="panel">
+  <form method="post">
+    {% csrf_token %}
+    <div class="field-row">
+      <div class="field">
+        <label for="{{ form.leetcode_number.id_for_label }}">LeetCode #</label>
+        {{ form.leetcode_number }}
+        {{ form.leetcode_number.errors }}
+      </div>
+      <div class="field" style="flex: 1;">
+        <label for="{{ form.title.id_for_label }}">Title</label>
+        {{ form.title }}
+        {{ form.title.errors }}
+      </div>
+      <div class="field">
+        <label for="{{ form.difficulty.id_for_label }}">Difficulty</label>
+        {{ form.difficulty }}
+        {{ form.difficulty.errors }}
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field" style="flex: 1;">
+        <label for="{{ form.leetcode_url.id_for_label }}">LeetCode URL</label>
+        {{ form.leetcode_url }}
+        {{ form.leetcode_url.errors }}
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="{{ form.primary_pattern.id_for_label }}">Primary Pattern</label>
+        {{ form.primary_pattern }}
+        {{ form.primary_pattern.errors }}
+      </div>
+      <div class="field">
+        <label for="{{ form.secondary_patterns.id_for_label }}">Secondary Patterns</label>
+        {{ form.secondary_patterns }}
+        {{ form.secondary_patterns.errors }}
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field" style="flex: 1;">
+        <label for="{{ form.notes.id_for_label }}">Notes</label>
+        {{ form.notes }}
+        {{ form.notes.errors }}
+      </div>
+    </div>
+    <button type="submit">{% if is_new %}Add Problem{% else %}Save Changes{% endif %}</button>
+    <a class="btn btn-secondary" href="{% url 'tracker:problem_list' %}">Cancel</a>
+  </form>
+</div>
+{% endblock %}
