@@ -40,6 +40,12 @@ _railway_domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN")
 if _railway_domain:
     ALLOWED_HOSTS.append(_railway_domain)
 
+# Railway's internal healthcheck prober always sends this fixed Host header,
+# regardless of the service's actual domain — without it every healthcheck
+# request gets rejected as DisallowedHost and the deploy never goes healthy.
+if os.environ.get("RAILWAY_ENVIRONMENT"):
+    ALLOWED_HOSTS.append("healthcheck.railway.app")
+
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",") if o.strip()]
 if _railway_domain:
     CSRF_TRUSTED_ORIGINS.append(f"https://{_railway_domain}")
