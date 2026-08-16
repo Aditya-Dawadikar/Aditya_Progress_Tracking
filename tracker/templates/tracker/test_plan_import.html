@@ -1,8 +1,22 @@
 {% extends "tracker/base.html" %}
+{% load static %}
 {% block title %}Import Test Plan{% endblock %}
 {% block content %}
 <h1>Import Test Plan</h1>
-<p class="muted">Upload a schema_version 1.0 TestPlan JSON file (see Instructions2.md §7 for the format).</p>
+<p class="muted">
+  Upload a schema_version 1.0 TestPlan JSON file — the format an LLM (or you, by hand)
+  generates the next assessment in. New to the format? See the
+  <a href="{% static 'tracker/samples/sample_test_plan.json' %}" download>sample test plan</a>
+  below or the README.
+</p>
+
+<div class="panel field-row" style="align-items: center;">
+  <div>
+    <strong>New here?</strong>
+    <p class="muted" style="margin: 4px 0 0;">Download a fully-worked example (10 problems, evaluation metadata included) to use as a template.</p>
+  </div>
+  <a class="btn btn-secondary" href="{% static 'tracker/samples/sample_test_plan.json' %}" download="sample_test_plan.json">Download Sample Test Plan</a>
+</div>
 
 {% if errors %}
 <div class="panel" style="border-color: var(--bad);">

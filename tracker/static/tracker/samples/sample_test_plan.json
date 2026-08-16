@@ -1,0 +1,182 @@
+{
+  "schema_version": "1.0",
+  "name": "Weekly Assessment 01",
+  "description": "Sample plan for the LeetCode Performance Tracker LMS. Import this as a template, or hand its shape to an LLM and ask it to generate the next one from your exported CSVs.",
+  "target_distribution": {
+    "medium": 8,
+    "hard": 2
+  },
+  "problems": [
+    {
+      "order": 1,
+      "leetcode_number": 3,
+      "title": "Longest Substring Without Repeating Characters",
+      "url": "https://leetcode.com/problems/longest-substring-without-repeating-characters/",
+      "difficulty": "Medium",
+      "novelty": "Never Seen",
+      "evaluation": {
+        "primary_pattern": "Sliding Window",
+        "secondary_patterns": ["Hashing"],
+        "selection_reason": "Tests variable-size sliding window recognition and shrink-condition reasoning.",
+        "expected_failure_modes": [
+          "Incorrect shrinking condition",
+          "Duplicate handling",
+          "Off-by-one boundary"
+        ]
+      }
+    },
+    {
+      "order": 2,
+      "leetcode_number": 42,
+      "title": "Trapping Rain Water",
+      "url": "https://leetcode.com/problems/trapping-rain-water/",
+      "difficulty": "Hard",
+      "novelty": "Seen But Never Solved",
+      "evaluation": {
+        "primary_pattern": "Two Pointers",
+        "secondary_patterns": ["Monotonic Stack"],
+        "selection_reason": "Tests boundary/contribution reasoning rather than the memorized two-pointer trick alone.",
+        "expected_failure_modes": [
+          "Duplicate boundary handling",
+          "Incorrect contribution count"
+        ]
+      }
+    },
+    {
+      "order": 3,
+      "leetcode_number": 200,
+      "title": "Number of Islands",
+      "url": "https://leetcode.com/problems/number-of-islands/",
+      "difficulty": "Medium",
+      "novelty": "Recently Solved",
+      "evaluation": {
+        "primary_pattern": "DFS",
+        "secondary_patterns": ["Graphs"],
+        "selection_reason": "Tests grid traversal recognition and visited-state tracking.",
+        "expected_failure_modes": [
+          "Missing visited tracking",
+          "Off-by-one grid bounds"
+        ]
+      }
+    },
+    {
+      "order": 4,
+      "leetcode_number": 55,
+      "title": "Jump Game",
+      "url": "https://leetcode.com/problems/jump-game/",
+      "difficulty": "Medium",
+      "novelty": "Solved Long Ago",
+      "evaluation": {
+        "primary_pattern": "Greedy",
+        "secondary_patterns": [],
+        "selection_reason": "Tests whether a greedy reachability argument is recognized instead of reaching for DP by default.",
+        "expected_failure_modes": [
+          "Defaulting to O(n^2) DP",
+          "Incorrect reachability update"
+        ]
+      }
+    },
+    {
+      "order": 5,
+      "leetcode_number": 146,
+      "title": "LRU Cache",
+      "url": "https://leetcode.com/problems/lru-cache/",
+      "difficulty": "Medium",
+      "novelty": "Unknown",
+      "evaluation": {
+        "primary_pattern": "Linked List",
+        "secondary_patterns": ["Hashing"],
+        "selection_reason": "Tests combining a hash map with a doubly linked list for O(1) get/put.",
+        "expected_failure_modes": [
+          "Incorrect eviction order",
+          "Broken pointer updates on move-to-front"
+        ]
+      }
+    },
+    {
+      "order": 6,
+      "leetcode_number": 56,
+      "title": "Merge Intervals",
+      "url": "https://leetcode.com/problems/merge-intervals/",
+      "difficulty": "Medium",
+      "novelty": "Never Seen",
+      "evaluation": {
+        "primary_pattern": "Intervals",
+        "secondary_patterns": [],
+        "selection_reason": "Tests sort-then-sweep interval merging and the overlap condition.",
+        "expected_failure_modes": [
+          "Wrong overlap condition (< vs <=)",
+          "Forgetting to sort first"
+        ]
+      }
+    },
+    {
+      "order": 7,
+      "leetcode_number": 295,
+      "title": "Find Median from Data Stream",
+      "url": "https://leetcode.com/problems/find-median-from-data-stream/",
+      "difficulty": "Hard",
+      "novelty": "Never Seen",
+      "evaluation": {
+        "primary_pattern": "Heap",
+        "secondary_patterns": [],
+        "selection_reason": "Tests recognizing the two-heap (max-heap/min-heap) balance pattern for streaming medians.",
+        "expected_failure_modes": [
+          "Heaps drift out of balance",
+          "Wrong heap sign/ordering"
+        ]
+      }
+    },
+    {
+      "order": 8,
+      "leetcode_number": 207,
+      "title": "Course Schedule",
+      "url": "https://leetcode.com/problems/course-schedule/",
+      "difficulty": "Medium",
+      "novelty": "Seen But Never Solved",
+      "evaluation": {
+        "primary_pattern": "Topological Sort",
+        "secondary_patterns": ["Graphs", "DFS"],
+        "selection_reason": "Tests cycle detection via topological sort rather than naive DFS without a visiting-state.",
+        "expected_failure_modes": [
+          "Missing 3-color cycle detection",
+          "Wrong in-degree bookkeeping"
+        ]
+      }
+    },
+    {
+      "order": 9,
+      "leetcode_number": 300,
+      "title": "Longest Increasing Subsequence",
+      "url": "https://leetcode.com/problems/longest-increasing-subsequence/",
+      "difficulty": "Medium",
+      "novelty": "Recently Solved",
+      "evaluation": {
+        "primary_pattern": "1D DP",
+        "secondary_patterns": ["Binary Search"],
+        "selection_reason": "Tests recognizing the O(n log n) patience-sorting formulation, not just the O(n^2) DP.",
+        "expected_failure_modes": [
+          "Settling for O(n^2) under time pressure",
+          "Incorrect binary search bound (lower vs upper)"
+        ]
+      }
+    },
+    {
+      "order": 10,
+      "leetcode_number": 75,
+      "title": "Sort Colors",
+      "url": "https://leetcode.com/problems/sort-colors/",
+      "difficulty": "Medium",
+      "novelty": "Solved Long Ago",
+      "evaluation": {
+        "primary_pattern": "Two Pointers",
+        "secondary_patterns": [],
+        "selection_reason": "Tests the three-way (Dutch national flag) partition rather than a two-pass counting shortcut.",
+        "expected_failure_modes": [
+          "Off-by-one on the swap pointers",
+          "Advancing the wrong pointer after a swap"
+        ]
+      }
+    }
+  ]
+}
