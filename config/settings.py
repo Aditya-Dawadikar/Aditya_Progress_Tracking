@@ -48,6 +48,15 @@ if _railway_domain:
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 CSRF_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_SECURE = not DEBUG
+SECURE_SSL_REDIRECT = not DEBUG
+
+# HSTS is deliberately left unset: it's a long-lived browser-side commitment
+# ("serious, irreversible problems" per Django's own check) that isn't worth
+# it for a single-user personal tool.
+SILENCED_SYSTEM_CHECKS = [
+    "security.W004",  # HSTS: see note above.
+    "mail.E001",  # App never sends email; console backend is fine as-is.
+]
 
 
 # Application definition
