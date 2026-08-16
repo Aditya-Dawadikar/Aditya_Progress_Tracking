@@ -55,19 +55,18 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 CSRF_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_SECURE = not DEBUG
 
-# Deliberately NOT setting SECURE_SSL_REDIRECT: Railway's healthcheck
-# prober connects to the container over plain HTTP internally (before
-# the deployment goes live, so there's no edge TLS terminator in front of
-# it yet) and doesn't follow redirects. Forcing a redirect here made every
-# healthcheck get a 301 instead of 200 and the deploy never went healthy.
-# Real end-user traffic is already HTTPS-only via Railway's edge.
+# SECURE_SSL_REDIRECT itself is left off: Django's SecurityMiddleware only
+# supports exempting it by path, not by Host header, and the healthcheck
+# prober uses the same path ("/") as real traffic. HealthcheckSafeSSLRedirect
+# below does the equivalent redirect but exempts Railway's healthcheck host
+# specifically — everything else still gets bounced to HTTPS.
 #
-# HSTS is deliberately left unset too: it's a long-lived browser-side
+# HSTS is deliberately left unset: it's a long-lived browser-side
 # commitment ("serious, irreversible problems" per Django's own check)
 # that isn't worth it for a single-user personal tool.
 SILENCED_SYSTEM_CHECKS = [
     "security.W004",  # HSTS: see note above.
-    "security.W008",  # SSL redirect: see note above.
+    "security.W008",  # SECURE_SSL_REDIRECT: enforced by our own middleware instead, see note above.
     "mail.E001",  # App never sends email; console backend is fine as-is.
 ]
 
@@ -86,6 +85,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'tracker.middleware.HealthcheckSafeSSLRedirectMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
