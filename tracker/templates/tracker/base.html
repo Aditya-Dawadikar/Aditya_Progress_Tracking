@@ -22,13 +22,30 @@
     <div class="site-header-row">
       <a class="brand" href="{% url 'tracker:boards_list' %}">Goalpost</a>
       <div class="header-right">
-        <a class="whoami-chip" href="{% url 'tracker:whoami' %}?next={{ request.path|urlencode }}">
-          {% if request.member %}
-            {{ request.member.name }} <span class="chip-caret">&#9662;</span>
-          {% else %}
-            Pick a name
-          {% endif %}
-        </a>
+        <details class="member-menu">
+          <summary class="whoami-chip">
+            {% if request.member %}{{ request.member.name }}{% else %}Pick a name{% endif %}
+            <span class="chip-caret">&#9662;</span>
+          </summary>
+          <div class="member-menu-panel">
+            {% if request.members %}
+              <form method="post" action="{% url 'tracker:whoami' %}">
+                {% csrf_token %}<input type="hidden" name="action" value="switch"><input type="hidden" name="next" value="{{ request.path }}">
+                <label for="header-member-select">Switch name</label>
+                <select id="header-member-select" name="member_id">
+                  {% for member in request.members %}<option value="{{ member.pk }}"{% if request.member.pk == member.pk %} selected{% endif %}>{{ member.name }}</option>{% endfor %}
+                </select>
+                <button type="submit" class="btn">Select</button>
+              </form>
+            {% endif %}
+            <form method="post" action="{% url 'tracker:whoami' %}">
+              {% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}">
+              <label for="header-member-name">New name</label>
+              <input id="header-member-name" name="name" maxlength="60" placeholder="Your name" required>
+              <button type="submit" class="btn btn-primary">Create</button>
+            </form>
+          </div>
+        </details>
         <label for="nav-toggle" class="hamburger-btn" aria-label="Toggle menu">
           <span></span><span></span><span></span>
         </label>
@@ -36,7 +53,6 @@
     </div>
     <nav id="site-nav">
       <a href="{% url 'tracker:boards_list' %}">Boards</a>
-      <a href="{% url 'tracker:category_list' %}">Categories</a>
       <a href="{% url 'tracker:leaderboard' %}">Leaderboard</a>
     </nav>
   </header>

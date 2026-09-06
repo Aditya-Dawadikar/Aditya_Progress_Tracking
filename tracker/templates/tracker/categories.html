@@ -1,8 +1,9 @@
 {% extends "tracker/base.html" %}
-{% block title %}Categories · Goalpost{% endblock %}
+{% block title %}Categories · {{ board.name }} · Goalpost{% endblock %}
 {% block content %}
+<p class="breadcrumb"><a href="{% url 'tracker:board_settings' board.pk %}">{{ board.name }} settings</a></p>
 <h1>Categories</h1>
-<p class="hint">Categories are shared across every board. Pick one when creating a goal, or add your own here.</p>
+<p class="hint">Categories on this board are available when creating or editing its goals.</p>
 
 {% if categories %}
   <div class="panel">

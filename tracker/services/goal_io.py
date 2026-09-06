@@ -20,7 +20,14 @@ def _serialize_goal(goal):
         "start_date": goal.start_date.isoformat() if goal.start_date else None,
         "end_date": goal.end_date.isoformat() if goal.end_date else None,
         "progress_percent": goal.progress_percent,
-        "tasks": [{"title": task.title, "completed": task.completed} for task in goal.tasks.all()],
+        "tasks": [
+            {
+                "title": task.title,
+                "completed": task.completed,
+                "due_date": task.due_date.isoformat() if task.due_date else None,
+            }
+            for task in goal.tasks.all()
+        ],
     }
 
 
@@ -68,6 +75,8 @@ def _validate_node(node, path, errors):
             errors.append(f"{path}.tasks[{i}].title: required")
         elif not isinstance(task.get("completed", False), bool):
             errors.append(f"{path}.tasks[{i}].completed: must be true or false")
+        elif task.get("due_date") is not None and not isinstance(task["due_date"], str):
+            errors.append(f"{path}.tasks[{i}].due_date: must be an ISO date string or null")
 
 
 def validate_import(data):
@@ -87,14 +96,15 @@ def validate_import(data):
 _palette_cycle = itertools.cycle([hex_ for hex_, _ in CATEGORY_PALETTE])
 
 
-def _get_category(name, cache):
+def _get_category(board, name, cache):
     if not name:
         return None
     key = name.strip().lower()
     if key in cache:
         return cache[key]
     category, _ = Category.objects.get_or_create(
-        name__iexact=name.strip(),
+        board=board,
+        name=name.strip(),
         defaults={"name": name.strip(), "color": next(_palette_cycle)},
     )
     cache[key] = category
@@ -112,7 +122,7 @@ def _create_goal(node, board, default_owner, category_cache):
         owner=default_owner,
         title=node["title"].strip(),
         description=node.get("description") or "",
-        category=_get_category(node.get("category"), category_cache),
+        category=_get_category(board, node.get("category"), category_cache),
         status=node.get("status") or Goal.STATUS_NOT_STARTED,
         start_date=node.get("start_date") or None,
         end_date=node.get("end_date") or None,
@@ -123,7 +133,10 @@ def _create_goal(node, board, default_owner, category_cache):
     goal.save()
     for order, task_data in enumerate(node.get("tasks") or []):
         goal.tasks.create(
-            title=task_data["title"].strip(), completed=task_data.get("completed", False), order=order
+            title=task_data["title"].strip(),
+            completed=task_data.get("completed", False),
+            due_date=task_data.get("due_date") or None,
+            order=order,
         )
     return goal
 

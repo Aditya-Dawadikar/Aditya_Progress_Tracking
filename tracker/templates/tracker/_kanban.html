@@ -1,15 +1,15 @@
 <div class="kanban" data-reorder-url="{% url 'tracker:goal_reorder' %}" data-scope="{{ reorder_scope }}" data-scope-id="{{ reorder_scope_id }}">
   {% for column in columns %}
-    <div class="kanban-column" data-status="{{ column.key }}">
-      <div class="kanban-column-header">
+    <details class="kanban-column" data-status="{{ column.key }}" open>
+      <summary class="kanban-column-header">
         <span>{{ column.label }}</span>
         <span class="kanban-count">{{ column.goals|length }}</span>
-      </div>
+      </summary>
       <ul class="kanban-list" data-status="{{ column.key }}">
         {% for goal in column.goals %}
           {% include "tracker/_goal_card.html" %}
         {% endfor %}
       </ul>
-    </div>
+    </details>
   {% endfor %}
 </div>

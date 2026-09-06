@@ -208,21 +208,24 @@ class ViewSmokeTests(TestCase):
 
 class CategoryTests(TestCase):
     def test_create_category_requires_a_member(self):
-        response = self.client.get(reverse("tracker:category_list"), secure=True)
+        board = GoalBoard.objects.create(name="Board")
+        category_url = reverse("tracker:category_list", args=[board.pk])
+        response = self.client.get(category_url, secure=True)
         self.assertRedirects(
             response,
-            f"{reverse('tracker:whoami')}?next={reverse('tracker:category_list')}",
+            f"{reverse('tracker:whoami')}?next={category_url}",
             fetch_redirect_response=False,
         )
 
     def test_member_can_create_category(self):
         member = Member.objects.create(name="Alex")
+        board = GoalBoard.objects.create(name="Board", created_by=member)
         self.client.post(reverse("tracker:whoami"), {"action": "switch", "member_id": member.pk}, secure=True)
         response = self.client.post(
-            reverse("tracker:category_list"), {"name": "Side Project", "color": "#7B6DCC"}, secure=True
+            reverse("tracker:category_list", args=[board.pk]), {"name": "Side Project", "color": "#7B6DCC"}, secure=True
         )
         self.assertEqual(response.status_code, 302)
-        category = Category.objects.get(name="Side Project")
+        category = Category.objects.get(board=board, name="Side Project")
         self.assertEqual(category.color, "#7B6DCC")
         self.assertEqual(category.created_by, member)
 
@@ -232,8 +235,8 @@ class BoardFilterTests(TestCase):
         self.member = Member.objects.create(name="Alex")
         self.other = Member.objects.create(name="Sam")
         self.board = GoalBoard.objects.create(name="Board")
-        self.finance = Category.objects.create(name="Test Finance", color="#4F7A62")
-        self.health = Category.objects.create(name="Test Health", color="#E6A65D")
+        self.finance = Category.objects.create(board=self.board, name="Test Finance", color="#4F7A62")
+        self.health = Category.objects.create(board=self.board, name="Test Health", color="#E6A65D")
         self.goal_a = Goal.objects.create(
             board=self.board, owner=self.member, title="Save money",
             category=self.finance, start_date=days(-5), end_date=days(5),
@@ -266,18 +269,18 @@ class GoalImportExportTests(TestCase):
     def setUp(self):
         self.member = Member.objects.create(name="Alex")
         self.board = GoalBoard.objects.create(name="Board", created_by=self.member)
-        self.category = Category.objects.create(name="Test Finance", color="#4F7A62")
+        self.category = Category.objects.create(board=self.board, name="Test Finance", color="#4F7A62")
         self.goal = Goal.objects.create(
             board=self.board, owner=self.member, title="Save $10,000", category=self.category,
             start_date=days(-10), end_date=days(90), progress_percent=40,
         )
-        TodoTask.objects.create(goal=self.goal, title="Save first $5,000", completed=True)
+        TodoTask.objects.create(goal=self.goal, title="Save first $5,000", completed=True, due_date=days(30))
 
     def test_export_includes_tasks(self):
         data = goal_io.export_board(self.board)
         self.assertEqual(len(data["goals"]), 1)
         self.assertEqual(data["goals"][0]["title"], "Save $10,000")
-        self.assertEqual(data["goals"][0]["tasks"], [{"title": "Save first $5,000", "completed": True}])
+        self.assertEqual(data["goals"][0]["tasks"], [{"title": "Save first $5,000", "completed": True, "due_date": days(30).isoformat()}])
 
     def test_import_round_trip_recreates_goal_and_tasks(self):
         data = goal_io.export_board(self.board)
@@ -288,6 +291,7 @@ class GoalImportExportTests(TestCase):
         self.assertEqual(top.title, "Save $10,000")
         self.assertEqual(top.category.name, "Test Finance")
         self.assertEqual(top.tasks.get().title, "Save first $5,000")
+        self.assertEqual(top.tasks.get().due_date, days(30))
 
     def test_import_rejects_missing_title(self):
         with self.assertRaises(goal_io.GoalImportError):

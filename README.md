@@ -20,15 +20,16 @@ GoalBoard        — a shared board (e.g. "2026 Goals")
   progress is their completion percentage; otherwise progress is set directly
   on the goal (0-100%). A task may have an optional deadline, which shows its
   remaining days or overdue state. Tasks cannot contain goals or other tasks.
-- `Category` is a small shared taxonomy (name + color), seeded with
-  Financial/Health/Career/Personal — manage it at `/categories/`, where
-  anyone can add more from a fixed color palette (`CATEGORY_PALETTE` in
-  `tracker/models.py`).
+- `Category` belongs to one board (name + color). The board creator manages
+  it from Board Settings, where they can add shared categories for that board
+  from the fixed `CATEGORY_PALETTE` in `tracker/models.py`.
 - Goals are reorganized via drag-and-drop between status columns on a
   board (or, for subgoals, on their parent goal's page) — see
   `tracker/static/tracker/js/board.js`, backed by SortableJS and a single
   `/reorder/` endpoint that re-synchronizes an entire board's column state
   per drop. Each status column gets its own accent color.
+- Goals and tasks can be assigned to zero or more members. Assignment is
+  optional and separate from the creator, who retains edit/delete control.
 - A board's Kanban view has filters (keyword, category, owner, start-after,
   end-before) as plain GET params, so filtered views are shareable links.
 - **Bulk transfer**: any board can be exported to a JSON file (`Export

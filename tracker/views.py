@@ -11,7 +11,7 @@ from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from .forms import BoardFilterForm, CategoryForm, GoalBoardForm, GoalForm, GoalImportForm, MemberForm, TodoTaskForm
+from .forms import BoardFilterForm, CategoryForm, DeleteConfirmationForm, GoalBoardForm, GoalForm, GoalImportForm, MemberForm, TodoTaskForm
 from .models import Category, Goal, GoalBoard, Member, TodoTask
 from .services import goal_io
 from .services.scoring import member_leaderboard
@@ -86,20 +86,26 @@ def whoami_logout(request):
 # ---------------------------------------------------------------------------
 
 @require_member
-def category_list(request):
+def category_list(request, pk):
+    board = get_object_or_404(GoalBoard, pk=pk)
+    if board.created_by_id != request.member.pk:
+        messages.error(request, "Only the board's creator can manage its categories.")
+        return redirect(board.get_absolute_url())
     if request.method == "POST":
         form = CategoryForm(request.POST)
         if form.is_valid():
             category = form.save(commit=False)
+            category.board = board
             category.created_by = request.member
             category.save()
             messages.success(request, f"Category “{category.name}” created.")
-            return redirect("tracker:category_list")
+            return redirect("tracker:category_list", pk=board.pk)
     else:
         form = CategoryForm()
     return render(request, "tracker/categories.html", {
+        "board": board,
         "form": form,
-        "categories": Category.objects.all(),
+        "categories": board.categories.all(),
     })
 
 
@@ -180,16 +186,30 @@ def board_edit(request, pk):
 
 
 @require_member
+def board_settings(request, pk):
+    board = get_object_or_404(GoalBoard, pk=pk)
+    if board.created_by_id != request.member.pk:
+        messages.error(request, "Only the board's creator can open its settings.")
+        return redirect(board.get_absolute_url())
+    return render(request, "tracker/board_settings.html", {"board": board})
+
+
+@require_member
 def board_delete(request, pk):
     board = get_object_or_404(GoalBoard, pk=pk)
     if board.created_by_id != request.member.pk:
         messages.error(request, "Only the board's creator can delete it.")
         return redirect(board.get_absolute_url())
     if request.method == "POST":
-        board.delete()
-        messages.success(request, f"Board “{board.name}” deleted.")
-        return redirect("tracker:boards_list")
-    return render(request, "tracker/board_confirm_delete.html", {"board": board})
+        form = DeleteConfirmationForm(request.POST)
+        if form.is_valid() and form.cleaned_data["name"] == board.name:
+            board.delete()
+            messages.success(request, f"Board “{board.name}” deleted.")
+            return redirect("tracker:boards_list")
+        form.add_error("name", "The name does not match this board.")
+    else:
+        form = DeleteConfirmationForm()
+    return render(request, "tracker/board_confirm_delete.html", {"board": board, "form": form})
 
 
 def board_export_json(request, pk):
@@ -238,7 +258,7 @@ def goal_create(request):
     board = get_object_or_404(GoalBoard, pk=board_id)
 
     if request.method == "POST":
-        form = GoalForm(request.POST)
+        form = GoalForm(request.POST, board=board)
         if form.is_valid():
             goal = form.save(commit=False)
             goal.board = board
@@ -250,10 +270,11 @@ def goal_create(request):
                 form.add_error(None, exc)
             else:
                 goal.save()
+                form.save_m2m()
                 messages.success(request, f"Goal “{goal.title}” created.")
                 return redirect(board.get_absolute_url())
     else:
-        form = GoalForm()
+        form = GoalForm(board=board)
 
     return render(request, "tracker/goal_form.html", {
         "form": form, "board": board, "is_new": True,
@@ -275,13 +296,13 @@ def goal_edit(request, pk):
         messages.error(request, "Only the goal's owner can edit it.")
         return redirect(goal.get_absolute_url())
     if request.method == "POST":
-        form = GoalForm(request.POST, instance=goal)
+        form = GoalForm(request.POST, instance=goal, board=goal.board)
         if form.is_valid():
             form.save()
             messages.success(request, "Goal updated.")
             return redirect(goal.get_absolute_url())
     else:
-        form = GoalForm(instance=goal)
+        form = GoalForm(instance=goal, board=goal.board)
     return render(request, "tracker/goal_form.html", {
         "form": form, "goal": goal, "board": goal.board, "is_new": False,
     })
@@ -295,11 +316,16 @@ def goal_delete(request, pk):
         return redirect(goal.get_absolute_url())
     redirect_to = goal.board.get_absolute_url()
     if request.method == "POST":
-        title = goal.title
-        goal.delete()
-        messages.success(request, f"Goal “{title}” deleted.")
-        return redirect(redirect_to)
-    return render(request, "tracker/goal_confirm_delete.html", {"goal": goal})
+        form = DeleteConfirmationForm(request.POST)
+        if form.is_valid() and form.cleaned_data["name"] == goal.title:
+            title = goal.title
+            goal.delete()
+            messages.success(request, f"Goal “{title}” deleted.")
+            return redirect(redirect_to)
+        form.add_error("name", "The name does not match this goal.")
+    else:
+        form = DeleteConfirmationForm()
+    return render(request, "tracker/goal_confirm_delete.html", {"goal": goal, "form": form})
 
 
 @require_member
@@ -357,6 +383,7 @@ def task_create(request, pk):
         task.goal = goal
         task.order = goal.tasks.count()
         task.save()
+        form.save_m2m()
         messages.success(request, "Task added.")
     return redirect(goal.get_absolute_url())
 
@@ -372,14 +399,21 @@ def task_toggle(request, pk):
 
 
 @require_member
-@require_POST
 def task_delete(request, pk):
     task = get_object_or_404(TodoTask, pk=pk)
     goal = task.goal
-    if goal.owner_id == request.member.pk:
-        task.delete()
-        messages.success(request, "Task deleted.")
-    return redirect(goal.get_absolute_url())
+    if goal.owner_id != request.member.pk:
+        return redirect(goal.get_absolute_url())
+    if request.method == "POST":
+        form = DeleteConfirmationForm(request.POST)
+        if form.is_valid() and form.cleaned_data["name"] == task.title:
+            task.delete()
+            messages.success(request, "Task deleted.")
+            return redirect(goal.get_absolute_url())
+        form.add_error("name", "The name does not match this task.")
+    else:
+        form = DeleteConfirmationForm()
+    return render(request, "tracker/task_confirm_delete.html", {"task": task, "goal": goal, "form": form})
 
 
 # ---------------------------------------------------------------------------

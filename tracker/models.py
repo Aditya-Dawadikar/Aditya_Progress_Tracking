@@ -49,7 +49,8 @@ class Member(models.Model):
 
 class Category(models.Model):
     id = ObjectIdAutoField(primary_key=True)
-    name = models.CharField(max_length=50, unique=True)
+    board = models.ForeignKey("GoalBoard", on_delete=models.CASCADE, related_name="categories")
+    name = models.CharField(max_length=50)
     color = models.CharField(max_length=7, default=DEFAULT_CATEGORY_COLOR)
     created_by = models.ForeignKey(
         Member, on_delete=models.SET_NULL, null=True, blank=True, related_name="categories_created"
@@ -59,6 +60,9 @@ class Category(models.Model):
     class Meta:
         ordering = ["name"]
         verbose_name_plural = "categories"
+        constraints = [
+            models.UniqueConstraint(fields=["board", "name"], name="unique_category_name_per_board"),
+        ]
 
     def __str__(self):
         return self.name
@@ -103,6 +107,7 @@ class Goal(models.Model):
     id = ObjectIdAutoField(primary_key=True)
     board = models.ForeignKey(GoalBoard, on_delete=models.CASCADE, related_name="goals")
     owner = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="goals")
+    assignees = models.ManyToManyField(Member, blank=True, related_name="assigned_goals")
 
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
@@ -194,6 +199,7 @@ class TodoTask(models.Model):
 
     id = ObjectIdAutoField(primary_key=True)
     goal = models.ForeignKey(Goal, on_delete=models.CASCADE, related_name="tasks")
+    assignees = models.ManyToManyField(Member, blank=True, related_name="assigned_tasks")
     title = models.CharField(max_length=200)
     completed = models.BooleanField(default=False)
     due_date = models.DateField(null=True, blank=True)

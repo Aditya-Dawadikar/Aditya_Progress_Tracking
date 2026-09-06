@@ -1,0 +1,12 @@
+{% extends "tracker/base.html" %}
+{% block title %}Delete task · Goalpost{% endblock %}
+{% block content %}
+<p class="breadcrumb"><a href="{{ goal.get_absolute_url }}">{{ goal.title }}</a></p>
+<h1>Delete “{{ task.title }}”?</h1>
+<form method="post" class="panel">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit" class="btn btn-danger">Delete task</button>
+  <a href="{{ goal.get_absolute_url }}" class="btn">Cancel</a>
+</form>
+{% endblock %}

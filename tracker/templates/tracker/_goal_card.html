@@ -10,6 +10,7 @@
         </span>
       {% endif %}
       <span class="goal-owner">{{ goal.owner.name }}</span>
+      {% if goal.assignees.all %}<span class="goal-owner">Assigned: {% for member in goal.assignees.all %}{{ member.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</span>{% endif %}
     </div>
     <div class="progress-bar"><div class="progress-fill" style="width:{{ goal.effective_progress }}%"></div></div>
     <div class="goal-card-footer">

@@ -12,7 +12,7 @@
   {% csrf_token %}
   {{ form.as_p }}
   <p class="hint">
-    Don't see the right category? <a href="{% url 'tracker:category_list' %}" target="_blank" rel="noopener">Add one</a> (opens in a new tab), then reload this page.
+    Don't see the right category? <a href="{% url 'tracker:category_list' board.pk %}" target="_blank" rel="noopener">Add one</a> (opens in a new tab), then reload this page.
   </p>
   <button type="submit" class="btn btn-primary">{% if is_new %}Create goal{% else %}Save changes{% endif %}</button>
   <a href="{% if goal %}{{ goal.get_absolute_url }}{% else %}{{ board.get_absolute_url }}{% endif %}" class="btn">Cancel</a>

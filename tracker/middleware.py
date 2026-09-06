@@ -57,6 +57,7 @@ class CurrentMemberMiddleware:
         from tracker.models import Member
 
         request.member = None
+        request.members = Member.objects.all()
         member_id = request.session.get("member_id")
         if member_id:
             request.member = Member.objects.filter(pk=member_id).first()

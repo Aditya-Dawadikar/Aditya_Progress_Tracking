@@ -9,11 +9,8 @@
   </div>
   <div class="page-header-actions">
     <a href="{% url 'tracker:goal_create' %}?board={{ board.pk }}" class="btn btn-primary">New goal</a>
-    <a href="{% url 'tracker:board_export_json' board.pk %}" class="btn">Export JSON</a>
-    <a href="{% url 'tracker:board_import_json' board.pk %}" class="btn">Import JSON</a>
     {% if request.member and request.member.pk == board.created_by_id %}
-      <a href="{% url 'tracker:board_edit' board.pk %}" class="btn">Edit</a>
-      <a href="{% url 'tracker:board_delete' board.pk %}" class="btn btn-danger">Delete</a>
+      <a href="{% url 'tracker:board_settings' board.pk %}" class="btn">Settings</a>
     {% endif %}
   </div>
 </div>

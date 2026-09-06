@@ -38,7 +38,7 @@ class GoalForm(forms.ModelForm):
         model = Goal
         fields = [
             "title", "description", "category",
-            "start_date", "end_date", "status", "progress_percent",
+            "start_date", "end_date", "status", "progress_percent", "assignees",
         ]
         widgets = {
             "description": forms.Textarea(attrs={"rows": 3}),
@@ -51,10 +51,12 @@ class GoalForm(forms.ModelForm):
             "end_date": "End date (optional)",
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, board=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["category"].queryset = Category.objects.all()
+        self.fields["category"].queryset = Category.objects.filter(board=board) if board else Category.objects.none()
         self.fields["category"].required = False
+        self.fields["assignees"].queryset = Member.objects.all()
+        self.fields["assignees"].widget = forms.SelectMultiple(attrs={"size": 4})
 
     def clean(self):
         cleaned = super().clean()
@@ -85,15 +87,25 @@ class BoardFilterForm(forms.Form):
 class TodoTaskForm(forms.ModelForm):
     class Meta:
         model = TodoTask
-        fields = ["title", "due_date"]
+        fields = ["title", "due_date", "assignees"]
         widgets = {
             "title": forms.TextInput(attrs={"placeholder": "Add a task"}),
             "due_date": forms.DateInput(attrs={"type": "date"}),
         }
         labels = {
             "due_date": "Deadline",
+            "assignees": "Assign to",
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["assignees"].queryset = Member.objects.all()
+        self.fields["assignees"].widget = forms.SelectMultiple(attrs={"size": 4})
 
 
 class GoalImportForm(forms.Form):
     file = forms.FileField(label="Goals JSON file")
+
+
+class DeleteConfirmationForm(forms.Form):
+    name = forms.CharField(label="Type the item name to confirm")

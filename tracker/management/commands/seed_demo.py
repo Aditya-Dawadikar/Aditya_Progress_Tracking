@@ -16,16 +16,15 @@ class Command(BaseCommand):
         sam, _ = Member.objects.get_or_create(name="Sam")
         jordan, _ = Member.objects.get_or_create(name="Jordan")
 
-        for name, color in [("Financial", CATEGORY_PALETTE[0][0]), ("Health", CATEGORY_PALETTE[1][0]),
-                             ("Career", CATEGORY_PALETTE[2][0]), ("Personal", CATEGORY_PALETTE[3][0]),
-                             ("Learning", CATEGORY_PALETTE[5][0])]:
-            Category.objects.get_or_create(name=name, defaults={"color": color})
-        categories = {c.name: c for c in Category.objects.all()}
-
         board, _ = GoalBoard.objects.get_or_create(
             name="2026 Goals",
             defaults={"description": "Personal goals for the year.", "created_by": alex},
         )
+        for name, color in [("Financial", CATEGORY_PALETTE[0][0]), ("Health", CATEGORY_PALETTE[1][0]),
+                             ("Career", CATEGORY_PALETTE[2][0]), ("Personal", CATEGORY_PALETTE[3][0]),
+                             ("Learning", CATEGORY_PALETTE[5][0])]:
+            Category.objects.get_or_create(board=board, name=name, defaults={"color": color})
+        categories = {c.name: c for c in board.categories.all()}
 
         def make_goal(owner, title, category, status, start_offset=None, end_offset=None, progress=0, order=0):
             goal, created = Goal.objects.get_or_create(
