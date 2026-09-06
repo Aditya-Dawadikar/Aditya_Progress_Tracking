@@ -163,6 +163,9 @@ def goal_create(request):
     parent_id = request.GET.get("parent") or request.POST.get("parent")
     if parent_id:
         parent = get_object_or_404(Goal, pk=parent_id)
+        if parent.owner_id != request.member.pk:
+            messages.error(request, "You can only add subgoals to your own goals.")
+            return redirect(parent.get_absolute_url())
         board = parent.board
     elif board_id:
         board = get_object_or_404(GoalBoard, pk=board_id)

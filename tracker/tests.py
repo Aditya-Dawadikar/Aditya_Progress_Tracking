@@ -136,6 +136,17 @@ class ViewSmokeTests(TestCase):
         self.assertEqual(second.order, 0)
         self.assertEqual(self.goal.order, 1)
 
+    def test_cannot_add_subgoal_to_another_members_goal(self):
+        other = Member.objects.create(name="Other")
+        self.client.post(reverse("tracker:whoami"), {"action": "switch", "member_id": other.pk}, secure=True)
+        url = reverse("tracker:goal_create") + f"?parent={self.goal.pk}"
+        response = self.client.post(url, {
+            "title": "Sneaky subgoal", "category": "", "start_date": days(-1), "end_date": days(1),
+            "status": Goal.STATUS_NOT_STARTED, "progress_percent": 0,
+        }, secure=True)
+        self.assertRedirects(response, self.goal.get_absolute_url(), fetch_redirect_response=False)
+        self.assertFalse(self.goal.subgoals.exists())
+
     def test_reorder_cannot_move_another_members_goal(self):
         other = Member.objects.create(name="Other")
         others_goal = Goal.objects.create(

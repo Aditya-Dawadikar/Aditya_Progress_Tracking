@@ -27,8 +27,8 @@
   {% if request.member and request.member.pk == goal.owner_id %}
     <a href="{% url 'tracker:goal_edit' goal.pk %}" class="btn">Edit</a>
     <a href="{% url 'tracker:goal_delete' goal.pk %}" class="btn btn-danger">Delete</a>
+    <a href="{% url 'tracker:goal_create' %}?parent={{ goal.pk }}" class="btn btn-primary">New subgoal</a>
   {% endif %}
-  <a href="{% url 'tracker:goal_create' %}?parent={{ goal.pk }}" class="btn btn-primary">New subgoal</a>
 </div>
 
 <h2>Subgoals</h2>
