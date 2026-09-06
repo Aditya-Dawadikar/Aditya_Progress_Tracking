@@ -11,6 +11,7 @@ source = "MONGO_PRIVATE_URL" if os.environ.get("MONGO_PRIVATE_URL") else "MONGO_
 uri = os.environ.get(source, "")
 parts = urlsplit(uri)
 database = os.environ.get("MONGO_DB_NAME") or parts.path.lstrip("/") or "goalpost"
+auth_source = os.environ.get("MONGO_AUTH_SOURCE", "admin")
 try:
   port = parts.port or "<default>"
 except ValueError:
@@ -29,6 +30,7 @@ print(f"| Scheme:      {display(parts.scheme or '<missing>'):<43} |")
 print(f"| Host:        {display(parts.hostname or '<missing>'):<43} |")
 print(f"| Port:        {display(port):<43} |")
 print(f"| Database:    {display(database):<43} |")
+print(f"| Auth source: {display(auth_source):<43} |")
 print(f"| Credentials: {display(bool(parts.username or parts.password)):<43} |")
 print("+----------------------------------------------------------+")
 

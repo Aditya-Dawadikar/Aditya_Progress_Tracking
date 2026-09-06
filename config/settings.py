@@ -12,7 +12,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 
 import os
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit, urlunsplit
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -119,14 +119,27 @@ _mongo_variable = "MONGO_PRIVATE_URL" if os.environ.get("MONGO_PRIVATE_URL") els
 _mongo_url = os.environ.get(_mongo_variable)
 if not _mongo_url:
     raise RuntimeError("Set MONGO_PRIVATE_URL (Railway) or MONGO_URL (local) to a MongoDB connection URI.")
-_mongo_uri_database = urlsplit(_mongo_url).path.lstrip("/")
+_mongo_parts = urlsplit(_mongo_url)
+_mongo_uri_database = _mongo_parts.path.lstrip("/")
 _mongo_database_name = os.environ.get("MONGO_DB_NAME") or _mongo_uri_database or "goalpost"
+_mongo_host = urlunsplit((
+    _mongo_parts.scheme,
+    _mongo_parts.hostname + (f":{_mongo_parts.port}" if _mongo_parts.port else ""),
+    "",
+    _mongo_parts.query,
+    "",
+))
 
 DATABASES = {
     "default": {
         "ENGINE": "django_mongodb_backend",
         "NAME": _mongo_database_name,
-        "HOST": _mongo_url,
+        "HOST": _mongo_host,
+        "USER": unquote(_mongo_parts.username or ""),
+        "PASSWORD": unquote(_mongo_parts.password or ""),
+        "OPTIONS": {
+            "authSource": os.environ.get("MONGO_AUTH_SOURCE", "admin"),
+        },
     }
 }
 
