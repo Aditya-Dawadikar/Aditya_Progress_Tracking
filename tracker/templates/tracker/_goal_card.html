@@ -4,12 +4,18 @@
   <div class="goal-card-body">
     <a href="{{ goal.get_absolute_url }}" class="goal-card-title">{{ goal.title }}</a>
     <div class="goal-card-meta">
-      {% if goal.category %}<span class="pill">{{ goal.category }}</span>{% endif %}
+      {% if goal.category %}
+        <span class="pill pill-color" style="background:{{ goal.category.color }}1a; color:{{ goal.category.color }}; border-color:{{ goal.category.color }}55;">
+          <span class="swatch swatch-inline" style="background:{{ goal.category.color }}"></span>{{ goal.category.name }}
+        </span>
+      {% endif %}
       <span class="goal-owner">{{ goal.owner.name }}</span>
     </div>
     <div class="progress-bar"><div class="progress-fill" style="width:{{ goal.effective_progress }}%"></div></div>
     <div class="goal-card-footer">
-      <span class="due-date{% if goal.is_overdue %} overdue{% endif %}">Due {{ goal.end_date|date:"M j, Y" }}</span>
+      <span class="due-date{% if goal.is_overdue %} overdue{% endif %}">
+        {% if goal.end_date %}Due {{ goal.end_date|date:"M j, Y" }}{% else %}No deadline{% endif %}
+      </span>
       {% if goal.has_subgoals %}<span class="subgoal-count">{{ goal.subgoals.count }} subgoal{{ goal.subgoals.count|pluralize }}</span>{% endif %}
     </div>
   </div>

@@ -4,14 +4,16 @@ from functools import wraps
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.http import HttpResponseBadRequest, JsonResponse
+from django.db.models import Q
+from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from .forms import GoalBoardForm, GoalForm, MemberForm
-from .models import Goal, GoalBoard, Member
+from .forms import BoardFilterForm, CategoryForm, GoalBoardForm, GoalForm, GoalImportForm, MemberForm
+from .models import Category, Goal, GoalBoard, Member
+from .services import goal_io
 from .services.scoring import member_leaderboard
 
 
@@ -80,6 +82,28 @@ def whoami_logout(request):
 
 
 # ---------------------------------------------------------------------------
+# Categories
+# ---------------------------------------------------------------------------
+
+@require_member
+def category_list(request):
+    if request.method == "POST":
+        form = CategoryForm(request.POST)
+        if form.is_valid():
+            category = form.save(commit=False)
+            category.created_by = request.member
+            category.save()
+            messages.success(request, f"Category “{category.name}” created.")
+            return redirect("tracker:category_list")
+    else:
+        form = CategoryForm()
+    return render(request, "tracker/categories.html", {
+        "form": form,
+        "categories": Category.objects.all(),
+    })
+
+
+# ---------------------------------------------------------------------------
 # Boards
 # ---------------------------------------------------------------------------
 
@@ -112,12 +136,29 @@ def board_create(request):
 
 def board_detail(request, pk):
     board = get_object_or_404(GoalBoard, pk=pk)
-    top_level = list(board.top_level_goals.select_related("owner"))
+    goals_qs = board.top_level_goals.select_related("owner", "category")
+
+    filter_form = BoardFilterForm(request.GET or None, goals_queryset=goals_qs)
+    if filter_form.is_valid():
+        cd = filter_form.cleaned_data
+        if cd["q"]:
+            goals_qs = goals_qs.filter(Q(title__icontains=cd["q"]) | Q(description__icontains=cd["q"]))
+        if cd["category"]:
+            goals_qs = goals_qs.filter(category=cd["category"])
+        if cd["owner"]:
+            goals_qs = goals_qs.filter(owner=cd["owner"])
+        if cd["start_after"]:
+            goals_qs = goals_qs.filter(start_date__gte=cd["start_after"])
+        if cd["end_before"]:
+            goals_qs = goals_qs.filter(end_date__lte=cd["end_before"])
+
     return render(request, "tracker/board_detail.html", {
         "board": board,
-        "columns": group_by_status(top_level),
+        "columns": group_by_status(list(goals_qs)),
         "reorder_scope": "board",
         "reorder_scope_id": board.pk,
+        "filter_form": filter_form,
+        "filters_active": any(request.GET.get(f) for f in ("q", "category", "owner", "start_after", "end_before")),
     })
 
 
@@ -149,6 +190,40 @@ def board_delete(request, pk):
         messages.success(request, f"Board “{board.name}” deleted.")
         return redirect("tracker:boards_list")
     return render(request, "tracker/board_confirm_delete.html", {"board": board})
+
+
+def board_export_json(request, pk):
+    board = get_object_or_404(GoalBoard, pk=pk)
+    data = goal_io.export_board(board)
+    response = HttpResponse(json.dumps(data, indent=2), content_type="application/json")
+    filename = f"{board.name.strip().replace(' ', '_').lower() or 'board'}-goals.json"
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+@require_member
+def board_import_json(request, pk):
+    board = get_object_or_404(GoalBoard, pk=pk)
+    errors = []
+    if request.method == "POST":
+        form = GoalImportForm(request.POST, request.FILES)
+        if form.is_valid():
+            try:
+                raw = form.cleaned_data["file"].read().decode("utf-8")
+                data = json.loads(raw)
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                errors = [f"Not valid JSON: {exc}"]
+            else:
+                try:
+                    created = goal_io.import_goals(board, data, default_owner=request.member)
+                except goal_io.GoalImportError as exc:
+                    errors = exc.errors
+                else:
+                    messages.success(request, f"Imported {created} goal(s).")
+                    return redirect(board.get_absolute_url())
+    else:
+        form = GoalImportForm()
+    return render(request, "tracker/board_import.html", {"board": board, "form": form, "errors": errors})
 
 
 # ---------------------------------------------------------------------------
@@ -198,7 +273,7 @@ def goal_create(request):
 
 def goal_detail(request, pk):
     goal = get_object_or_404(Goal, pk=pk)
-    subgoals = list(goal.subgoals.select_related("owner"))
+    subgoals = list(goal.subgoals.select_related("owner", "category"))
     return render(request, "tracker/goal_detail.html", {
         "goal": goal,
         "columns": group_by_status(subgoals),
@@ -298,5 +373,5 @@ def leaderboard(request):
 
 def member_profile(request, slug):
     member = get_object_or_404(Member, slug=slug)
-    top_level = list(member.goals.filter(parent__isnull=True).select_related("board"))
+    top_level = list(member.goals.filter(parent__isnull=True).select_related("board", "category"))
     return render(request, "tracker/member_profile.html", {"member": member, "goals": top_level})

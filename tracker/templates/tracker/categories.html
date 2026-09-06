@@ -1,0 +1,41 @@
+{% extends "tracker/base.html" %}
+{% block title %}Categories · Goalpost{% endblock %}
+{% block content %}
+<h1>Categories</h1>
+<p class="hint">Categories are shared across every board. Pick one when creating a goal, or add your own here.</p>
+
+{% if categories %}
+  <div class="panel">
+    <div class="category-grid">
+      {% for category in categories %}
+        <span class="pill pill-color" style="background:{{ category.color }}1a; color:{{ category.color }}; border-color:{{ category.color }}55;">
+          <span class="swatch swatch-inline" style="background:{{ category.color }}"></span>
+          {{ category.name }}
+        </span>
+      {% endfor %}
+    </div>
+  </div>
+{% endif %}
+
+<div class="panel">
+  <h2>New category</h2>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.name.errors }}
+    <label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
+    {{ form.name }}
+
+    <label>{{ form.color.label }}</label>
+    <div class="color-palette">
+      {% for value, label in form.color.field.choices %}
+        <label class="swatch-option">
+          <input type="radio" name="color" value="{{ value }}" {% if forloop.first %}checked{% endif %}>
+          <span class="swatch" style="background:{{ value }}" title="{{ label }}"></span>
+        </label>
+      {% endfor %}
+    </div>
+
+    <button type="submit" class="btn btn-primary" style="margin-top:14px;">Add category</button>
+  </form>
+</div>
+{% endblock %}

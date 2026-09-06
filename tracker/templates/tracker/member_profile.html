@@ -11,10 +11,14 @@
         <div>
           <h2>{{ goal.title }}</h2>
           <div class="goal-card-meta">
-            {% if goal.category %}<span class="pill">{{ goal.category }}</span>{% endif %}
+            {% if goal.category %}
+              <span class="pill pill-color" style="background:{{ goal.category.color }}1a; color:{{ goal.category.color }}; border-color:{{ goal.category.color }}55;">
+                <span class="swatch swatch-inline" style="background:{{ goal.category.color }}"></span>{{ goal.category.name }}
+              </span>
+            {% endif %}
             <span class="status-pill status-{{ goal.status }}">{{ goal.status|status_label }}</span>
           </div>
-          <p class="hint">on {{ goal.board.name }} &middot; due {{ goal.end_date|date:"M j, Y" }}</p>
+          <p class="hint">on {{ goal.board.name }}{% if goal.end_date %} &middot; due {{ goal.end_date|date:"M j, Y" }}{% endif %}</p>
         </div>
         {% gauge goal.effective_progress expected=goal.time_fraction_percent size="sm" %}
       </a>

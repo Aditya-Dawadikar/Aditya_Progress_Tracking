@@ -10,10 +10,14 @@ urlpatterns = [
     path("whoami/", views.whoami, name="whoami"),
     path("whoami/logout/", views.whoami_logout, name="whoami_logout"),
 
+    path("categories/", views.category_list, name="category_list"),
+
     path("boards/new/", views.board_create, name="board_create"),
     path("boards/<int:pk>/", views.board_detail, name="board_detail"),
     path("boards/<int:pk>/edit/", views.board_edit, name="board_edit"),
     path("boards/<int:pk>/delete/", views.board_delete, name="board_delete"),
+    path("boards/<int:pk>/export.json", views.board_export_json, name="board_export_json"),
+    path("boards/<int:pk>/import/", views.board_import_json, name="board_import_json"),
 
     path("goals/new/", views.goal_create, name="goal_create"),
     path("goals/<int:pk>/", views.goal_detail, name="goal_detail"),

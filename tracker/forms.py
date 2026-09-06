@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import Goal, GoalBoard, Member
+from .models import CATEGORY_PALETTE, Category, Goal, GoalBoard, Member
 
 
 class MemberForm(forms.ModelForm):
@@ -22,6 +22,17 @@ class GoalBoardForm(forms.ModelForm):
         }
 
 
+class CategoryForm(forms.ModelForm):
+    color = forms.ChoiceField(choices=CATEGORY_PALETTE, widget=forms.RadioSelect)
+
+    class Meta:
+        model = Category
+        fields = ["name", "color"]
+        widgets = {
+            "name": forms.TextInput(attrs={"placeholder": "e.g. Travel, Home, Side Project"}),
+        }
+
+
 class GoalForm(forms.ModelForm):
     class Meta:
         model = Goal
@@ -31,14 +42,19 @@ class GoalForm(forms.ModelForm):
         ]
         widgets = {
             "description": forms.Textarea(attrs={"rows": 3}),
-            "category": forms.TextInput(attrs={"placeholder": "e.g. Financial, Health, Career"}),
             "start_date": forms.DateInput(attrs={"type": "date"}),
             "end_date": forms.DateInput(attrs={"type": "date"}),
             "progress_percent": forms.NumberInput(attrs={"min": 0, "max": 100, "step": 5}),
         }
+        labels = {
+            "start_date": "Start date (optional)",
+            "end_date": "End date (optional)",
+        }
 
     def __init__(self, *args, has_subgoals=False, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["category"].queryset = Category.objects.all()
+        self.fields["category"].required = False
         if has_subgoals:
             # Progress is derived from subgoals once a goal has any.
             self.fields.pop("progress_percent")
@@ -49,3 +65,25 @@ class GoalForm(forms.ModelForm):
         if start and end and end <= start:
             self.add_error("end_date", "End date must be after the start date.")
         return cleaned
+
+
+class BoardFilterForm(forms.Form):
+    q = forms.CharField(required=False, label="Keyword")
+    category = forms.ModelChoiceField(queryset=Category.objects.all(), required=False)
+    owner = forms.ModelChoiceField(queryset=Member.objects.all(), required=False)
+    start_after = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
+    end_before = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
+
+    def __init__(self, *args, goals_queryset=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if goals_queryset is not None:
+            self.fields["category"].queryset = Category.objects.filter(
+                goals__in=goals_queryset
+            ).distinct()
+            self.fields["owner"].queryset = Member.objects.filter(
+                goals__in=goals_queryset
+            ).distinct()
+
+
+class GoalImportForm(forms.Form):
+    file = forms.FileField(label="Goals JSON file")

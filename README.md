@@ -14,23 +14,36 @@ GoalBoard        — a shared board (e.g. "2026 Goals")
        └─ Goal     — a subgoal (same shape, recursive)
 ```
 
-- Every goal has a hard `end_date` it must be achieved by, and (if it's a
-  subgoal) must fall within its parent's date range.
+- A goal's `start_date`/`end_date` are optional — a goal with no deadline
+  just has no `pace_score` and doesn't count toward the leaderboard. When
+  both are set, a subgoal's dates must fall within its parent's range.
 - A goal with subgoals has no progress of its own — its progress is always
   the average of its subgoals' progress, recursively. A leaf goal's
   progress is set directly (0-100%).
+- `Category` is a small shared taxonomy (name + color), seeded with
+  Financial/Health/Career/Personal — manage it at `/categories/`, where
+  anyone can add more from a fixed color palette (`CATEGORY_PALETTE` in
+  `tracker/models.py`).
 - Goals are reorganized via drag-and-drop between status columns on a
   board (or, for subgoals, on their parent goal's page) — see
   `tracker/static/tracker/js/board.js`, backed by SortableJS and a single
   `/reorder/` endpoint that re-synchronizes an entire board's column state
-  per drop.
+  per drop. Each status column gets its own accent color.
+- A board's Kanban view has filters (keyword, category, owner, start-after,
+  end-before) as plain GET params, so filtered views are shareable links.
+- **Bulk transfer**: any board can be exported to a JSON file (`Export
+  JSON`) and re-imported into any board (`Import JSON`) — the same nested
+  shape a board exports is what import expects (see
+  `tracker/services/goal_io.py`). Import never overwrites existing goals;
+  members and categories named in the file are created if they don't
+  already exist.
 - **Leaderboard scoring** (`tracker/services/scoring.py`): each goal has a
   `pace_score` (0-100, `Goal.pace_score` in `tracker/models.py`) —
   `50 + 50 * (progress_fraction - time_elapsed_fraction)`, clamped to
   0-100. 50 means exactly on schedule; higher is ahead, lower is behind.
   This normalizes goals of wildly different scope and duration onto the
   same scale. A member's leaderboard score is the average `pace_score`
-  across their top-level goals.
+  across their top-level goals that have a deadline.
 
 ## Identity
 

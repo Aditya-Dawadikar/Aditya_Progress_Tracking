@@ -8,18 +8,25 @@
 </head>
 <body>
   <header class="site-header">
+    <input type="checkbox" id="nav-toggle" class="nav-toggle-checkbox" hidden>
     <div class="site-header-row">
       <a class="brand" href="{% url 'tracker:boards_list' %}">Goalpost</a>
-      <a class="whoami-chip" href="{% url 'tracker:whoami' %}?next={{ request.path|urlencode }}">
-        {% if request.member %}
-          {{ request.member.name }} <span class="chip-caret">&#9662;</span>
-        {% else %}
-          Pick a name
-        {% endif %}
-      </a>
+      <div class="header-right">
+        <a class="whoami-chip" href="{% url 'tracker:whoami' %}?next={{ request.path|urlencode }}">
+          {% if request.member %}
+            {{ request.member.name }} <span class="chip-caret">&#9662;</span>
+          {% else %}
+            Pick a name
+          {% endif %}
+        </a>
+        <label for="nav-toggle" class="hamburger-btn" aria-label="Toggle menu">
+          <span></span><span></span><span></span>
+        </label>
+      </div>
     </div>
-    <nav>
+    <nav id="site-nav">
       <a href="{% url 'tracker:boards_list' %}">Boards</a>
+      <a href="{% url 'tracker:category_list' %}">Categories</a>
       <a href="{% url 'tracker:leaderboard' %}">Leaderboard</a>
     </nav>
   </header>

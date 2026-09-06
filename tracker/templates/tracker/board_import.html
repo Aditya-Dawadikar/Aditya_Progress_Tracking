@@ -1,0 +1,28 @@
+{% extends "tracker/base.html" %}
+{% block title %}Import goals · Goalpost{% endblock %}
+{% block content %}
+<h1>Import goals into “{{ board.name }}”</h1>
+<p class="hint">
+  Upload a goals JSON file — the same format produced by
+  <a href="{% url 'tracker:board_export_json' board.pk %}">Export</a> on any board.
+  Goals are created fresh (this never overwrites or deletes existing goals);
+  members and categories named in the file are created automatically if
+  they don't already exist.
+</p>
+
+{% if errors %}
+  <div class="panel error-panel">
+    <strong>Couldn't import that file:</strong>
+    <ul>
+      {% for error in errors %}<li>{{ error }}</li>{% endfor %}
+    </ul>
+  </div>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data" class="panel">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit" class="btn btn-primary">Import</button>
+  <a href="{{ board.get_absolute_url }}" class="btn">Cancel</a>
+</form>
+{% endblock %}

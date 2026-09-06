@@ -4,10 +4,11 @@ from django import template
 
 register = template.Library()
 
-# Status palette per the dataviz skill's fixed (mode-invariant) status colors.
-GOOD = "#0ca30c"
-WARNING = "#fab219"
-CRITICAL = "#d03b3b"
+# Matches the site theme's status colors (style.css --good/--warn/--bad) so
+# gauges, pills, and buttons all read as one consistent palette.
+GOOD = "#4F7A62"
+WARNING = "#E6A65D"
+CRITICAL = "#C1584A"
 
 _CX, _CY, _R = 60, 58, 46
 _VIEWBOX = "0 0 120 80"

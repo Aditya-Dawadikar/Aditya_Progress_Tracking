@@ -1,6 +1,6 @@
 <div class="kanban" data-reorder-url="{% url 'tracker:goal_reorder' %}" data-scope="{{ reorder_scope }}" data-scope-id="{{ reorder_scope_id }}">
   {% for column in columns %}
-    <div class="kanban-column">
+    <div class="kanban-column" data-status="{{ column.key }}">
       <div class="kanban-column-header">
         <span>{{ column.label }}</span>
         <span class="kanban-count">{{ column.goals|length }}</span>

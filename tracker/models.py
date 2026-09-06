@@ -4,6 +4,20 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import slugify
 
+# A small, fixed set of swatches offered when creating a category — keeps the
+# palette visually consistent instead of a full color wheel.
+CATEGORY_PALETTE = [
+    ("#4F7A62", "Sage"),
+    ("#E6A65D", "Amber"),
+    ("#7B6DCC", "Periwinkle"),
+    ("#5C8FC7", "Sky"),
+    ("#C1584A", "Terracotta"),
+    ("#4FA39A", "Teal"),
+    ("#C77DAE", "Orchid"),
+    ("#8A8578", "Stone"),
+]
+DEFAULT_CATEGORY_COLOR = CATEGORY_PALETTE[0][0]
+
 
 def _clamp(value, low, high):
     return max(low, min(high, value))
@@ -29,6 +43,22 @@ class Member(models.Model):
 
     def get_absolute_url(self):
         return reverse("tracker:member_profile", args=[self.slug])
+
+
+class Category(models.Model):
+    name = models.CharField(max_length=50, unique=True)
+    color = models.CharField(max_length=7, default=DEFAULT_CATEGORY_COLOR)
+    created_by = models.ForeignKey(
+        Member, on_delete=models.SET_NULL, null=True, blank=True, related_name="categories_created"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name_plural = "categories"
+
+    def __str__(self):
+        return self.name
 
 
 class GoalBoard(models.Model):
@@ -74,11 +104,13 @@ class Goal(models.Model):
 
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-    category = models.CharField(max_length=50, blank=True)
+    category = models.ForeignKey(
+        Category, on_delete=models.SET_NULL, null=True, blank=True, related_name="goals"
+    )
 
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_NOT_STARTED)
-    start_date = models.DateField()
-    end_date = models.DateField()
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
 
     progress_percent = models.PositiveSmallIntegerField(default=0)
     order = models.PositiveIntegerField(default=0)
@@ -134,7 +166,9 @@ class Goal(models.Model):
 
     @property
     def time_fraction(self):
-        """0..1 fraction of the goal's window that has elapsed."""
+        """0..1 fraction of the goal's window that has elapsed, or None with no deadline."""
+        if not self.start_date or not self.end_date:
+            return None
         total_days = (self.end_date - self.start_date).days
         if total_days <= 0:
             return 1.0
@@ -143,16 +177,22 @@ class Goal(models.Model):
 
     @property
     def time_fraction_percent(self):
-        return round(self.time_fraction * 100)
+        fraction = self.time_fraction
+        return round(fraction * 100) if fraction is not None else None
 
     @property
     def pace_score(self):
-        """0..100 normalized on-pace score. 50 = exactly on schedule."""
+        """0..100 normalized on-pace score, or None with no deadline. 50 = on schedule."""
+        fraction = self.time_fraction
+        if fraction is None:
+            return None
         progress_fraction = self.effective_progress / 100
-        return round(_clamp(50 + 50 * (progress_fraction - self.time_fraction), 0, 100))
+        return round(_clamp(50 + 50 * (progress_fraction - fraction), 0, 100))
 
     @property
     def is_overdue(self):
+        if not self.end_date:
+            return False
         return self.status not in (self.STATUS_COMPLETED, self.STATUS_ABANDONED) and timezone.localdate() > self.end_date
 
     def reorder_siblings_queryset(self):

@@ -9,12 +9,29 @@
   </div>
   <div class="page-header-actions">
     <a href="{% url 'tracker:goal_create' %}?board={{ board.pk }}" class="btn btn-primary">New goal</a>
+    <a href="{% url 'tracker:board_export_json' board.pk %}" class="btn">Export JSON</a>
+    <a href="{% url 'tracker:board_import_json' board.pk %}" class="btn">Import JSON</a>
     {% if request.member and request.member.pk == board.created_by_id %}
       <a href="{% url 'tracker:board_edit' board.pk %}" class="btn">Edit</a>
       <a href="{% url 'tracker:board_delete' board.pk %}" class="btn btn-danger">Delete</a>
     {% endif %}
   </div>
 </div>
+
+<details class="filter-bar" {% if filters_active %}open{% endif %}>
+  <summary>Filters{% if filters_active %} <span class="kanban-count">active</span>{% endif %}</summary>
+  <form method="get" class="filter-form">
+    {{ filter_form.q.label_tag }} {{ filter_form.q }}
+    {{ filter_form.category.label_tag }} {{ filter_form.category }}
+    {{ filter_form.owner.label_tag }} {{ filter_form.owner }}
+    {{ filter_form.start_after.label_tag }} {{ filter_form.start_after }}
+    {{ filter_form.end_before.label_tag }} {{ filter_form.end_before }}
+    <div class="filter-actions">
+      <button type="submit" class="btn btn-primary">Apply</button>
+      <a href="{{ board.get_absolute_url }}" class="btn">Clear</a>
+    </div>
+  </form>
+</details>
 
 {% include "tracker/_kanban.html" %}
 {% endblock %}
