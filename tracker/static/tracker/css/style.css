@@ -337,10 +337,17 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 
 .task-list { margin-top: 24px; }
 .task-list ul { display: grid; gap: 6px; padding: 0; margin: 0; list-style: none; }
-.task-create-form { display: grid; grid-template-columns: minmax(0, 1fr) 160px 180px auto; gap: 8px; margin-bottom: 12px; }
+.task-create-form { display: grid; grid-template-columns: 180px minmax(180px, 1fr) auto; gap: 8px; margin-bottom: 12px; align-items: end; }
+.task-title-field { grid-column: 1 / -1; }
 .task-create-form input { min-width: 0; }
 .task-create-form label { margin-bottom: 2px; }
 .task-create-form .btn { flex: 0 0 auto; }
+.task-assignee-picker { min-width: 0; border: 1px solid var(--panel-border); border-radius: 6px; background: var(--bg); }
+.task-assignee-picker summary { padding: 9px 10px; color: var(--text-dim); cursor: pointer; font-size: 13px; }
+.task-assignee-options { display: grid; gap: 4px; max-height: 156px; overflow-y: auto; padding: 0 10px 10px; }
+.task-assignee-options > div { display: flex; align-items: center; gap: 6px; }
+.task-assignee-options input { width: auto; padding: 0; }
+.task-assignee-options label { margin: 0; color: var(--text); }
 .task-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: 1px solid var(--panel-border); border-radius: 6px; background: var(--panel); }
 .task-item span { flex: 1; }
 .task-completed span { color: var(--text-dim); text-decoration: line-through; }

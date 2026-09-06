@@ -100,7 +100,7 @@ class TodoTaskForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["assignees"].queryset = Member.objects.all()
-        self.fields["assignees"].widget = forms.SelectMultiple(attrs={"size": 4})
+        self.fields["assignees"].widget = forms.CheckboxSelectMultiple()
 
 
 class GoalImportForm(forms.Form):

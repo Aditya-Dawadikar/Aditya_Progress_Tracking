@@ -45,9 +45,12 @@
   {% if request.member and request.member.pk == goal.owner_id %}
     <form method="post" action="{% url 'tracker:task_create' goal.pk %}" class="task-create-form">
       {% csrf_token %}
-      <div>{{ task_form.title }}</div>
+      <div class="task-title-field">{{ task_form.title }}</div>
       <div>{{ task_form.due_date.label_tag }}{{ task_form.due_date }}</div>
-      <div>{{ task_form.assignees.label_tag }}{{ task_form.assignees }}</div>
+      <details class="task-assignee-picker">
+        <summary>{{ task_form.assignees.label }}</summary>
+        <div class="task-assignee-options">{{ task_form.assignees }}</div>
+      </details>
       <button type="submit" class="btn btn-primary">Add task</button>
     </form>
   {% endif %}
