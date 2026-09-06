@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Category, Goal, GoalBoard, Member
+from .models import Category, Goal, GoalBoard, Member, TodoTask
 from .services import goal_io
 from .services.scoring import member_leaderboard
 
@@ -32,20 +32,11 @@ class GoalModelTests(TestCase):
         goal = self.make_goal(progress_percent=40)
         self.assertEqual(goal.effective_progress, 40)
 
-    def test_effective_progress_rolls_up_from_subgoals(self):
-        parent = self.make_goal(title="Parent")
-        self.make_goal(title="Child A", parent=parent, progress_percent=100)
-        self.make_goal(title="Child B", parent=parent, progress_percent=50)
-        self.assertEqual(parent.effective_progress, 75)
-
-    def test_subgoal_inherits_parent_board(self):
-        other_board = GoalBoard.objects.create(name="Other")
-        parent = self.make_goal(title="Parent")
-        child = Goal.objects.create(
-            board=other_board, parent=parent, owner=self.member, title="Child",
-            start_date=days(-5), end_date=days(5),
-        )
-        self.assertEqual(child.board_id, parent.board_id)
+    def test_effective_progress_is_derived_from_tasks(self):
+        goal = self.make_goal()
+        TodoTask.objects.create(goal=goal, title="Done", completed=True)
+        TodoTask.objects.create(goal=goal, title="Remaining", completed=False)
+        self.assertEqual(goal.effective_progress, 50)
 
     def test_completing_a_goal_sets_full_progress(self):
         goal = self.make_goal(progress_percent=10)
@@ -159,16 +150,20 @@ class ViewSmokeTests(TestCase):
         self.assertEqual(second.order, 0)
         self.assertEqual(self.goal.order, 1)
 
-    def test_cannot_add_subgoal_to_another_members_goal(self):
+    def test_cannot_add_task_to_another_members_goal(self):
         other = Member.objects.create(name="Other")
         self.client.post(reverse("tracker:whoami"), {"action": "switch", "member_id": other.pk}, secure=True)
-        url = reverse("tracker:goal_create") + f"?parent={self.goal.pk}"
-        response = self.client.post(url, {
-            "title": "Sneaky subgoal", "category": "", "start_date": days(-1), "end_date": days(1),
-            "status": Goal.STATUS_NOT_STARTED, "progress_percent": 0,
-        }, secure=True)
+        response = self.client.post(reverse("tracker:task_create", args=[self.goal.pk]), {"title": "Sneaky task"}, secure=True)
         self.assertRedirects(response, self.goal.get_absolute_url(), fetch_redirect_response=False)
-        self.assertFalse(self.goal.subgoals.exists())
+        self.assertFalse(self.goal.tasks.exists())
+
+    def test_owner_can_toggle_a_task(self):
+        task = TodoTask.objects.create(goal=self.goal, title="Complete this")
+        self.client.post(reverse("tracker:whoami"), {"action": "switch", "member_id": self.member.pk}, secure=True)
+        response = self.client.post(reverse("tracker:task_toggle", args=[task.pk]), secure=True)
+        self.assertRedirects(response, self.goal.get_absolute_url(), fetch_redirect_response=False)
+        task.refresh_from_db()
+        self.assertTrue(task.completed)
 
     def test_reorder_cannot_move_another_members_goal(self):
         other = Member.objects.create(name="Other")
@@ -253,31 +248,27 @@ class GoalImportExportTests(TestCase):
         self.member = Member.objects.create(name="Alex")
         self.board = GoalBoard.objects.create(name="Board", created_by=self.member)
         self.category = Category.objects.create(name="Test Finance", color="#4F7A62")
-        self.parent = Goal.objects.create(
+        self.goal = Goal.objects.create(
             board=self.board, owner=self.member, title="Save $10,000", category=self.category,
             start_date=days(-10), end_date=days(90), progress_percent=40,
         )
-        Goal.objects.create(
-            board=self.board, owner=self.member, title="First $5,000", parent=self.parent,
-            start_date=days(-10), end_date=days(20), status=Goal.STATUS_COMPLETED, progress_percent=100,
-        )
+        TodoTask.objects.create(goal=self.goal, title="Save first $5,000", completed=True)
 
-    def test_export_produces_nested_structure(self):
+    def test_export_includes_tasks(self):
         data = goal_io.export_board(self.board)
         self.assertEqual(len(data["goals"]), 1)
         self.assertEqual(data["goals"][0]["title"], "Save $10,000")
-        self.assertEqual(len(data["goals"][0]["subgoals"]), 1)
-        self.assertEqual(data["goals"][0]["subgoals"][0]["title"], "First $5,000")
+        self.assertEqual(data["goals"][0]["tasks"], [{"title": "Save first $5,000", "completed": True}])
 
-    def test_import_round_trip_recreates_goal_tree(self):
+    def test_import_round_trip_recreates_goal_and_tasks(self):
         data = goal_io.export_board(self.board)
         other_board = GoalBoard.objects.create(name="Other Board")
         created = goal_io.import_goals(other_board, data, default_owner=self.member)
-        self.assertEqual(created, 2)
+        self.assertEqual(created, 1)
         top = other_board.top_level_goals.get()
         self.assertEqual(top.title, "Save $10,000")
         self.assertEqual(top.category.name, "Test Finance")
-        self.assertEqual(top.subgoals.get().title, "First $5,000")
+        self.assertEqual(top.tasks.get().title, "Save first $5,000")
 
     def test_import_rejects_missing_title(self):
         with self.assertRaises(goal_io.GoalImportError):

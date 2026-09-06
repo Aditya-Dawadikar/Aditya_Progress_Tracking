@@ -324,6 +324,21 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 }
 .filter-actions { display: flex; gap: 8px; grid-column: 1 / -1; }
 
+/* ------------------------------------------------------------------ tasks */
+
+.task-list { margin-top: 24px; }
+.task-list ul { display: grid; gap: 6px; padding: 0; margin: 0; list-style: none; }
+.task-create-form { display: flex; gap: 8px; margin-bottom: 12px; }
+.task-create-form input { min-width: 0; }
+.task-create-form .btn { flex: 0 0 auto; }
+.task-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: 1px solid var(--panel-border); border-radius: 6px; background: var(--panel); }
+.task-item span { flex: 1; }
+.task-completed span { color: var(--text-dim); text-decoration: line-through; }
+.task-toggle, .task-delete { width: 24px; height: 24px; padding: 0; border: 1px solid var(--panel-border); border-radius: 4px; background: var(--panel); color: var(--good); cursor: pointer; }
+.task-delete { border-color: transparent; color: var(--text-dim); font-size: 20px; line-height: 1; }
+.task-delete:hover { color: var(--bad); }
+@media (max-width: 480px) { .task-create-form { align-items: stretch; flex-direction: column; } }
+
 /* --------------------------------------------------------------- kanban */
 
 .kanban {

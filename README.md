@@ -11,15 +11,14 @@ of how different their goals or timelines are.
 GoalBoard        — a shared board (e.g. "2026 Goals")
   └─ Goal         — title, description, owner, category, start/end date,
                      status (Not Started / In Progress / Completed / Abandoned)
-       └─ Goal     — a subgoal (same shape, recursive)
+  └─ TodoTask — a non-nestable checklist item
 ```
 
 - A goal's `start_date`/`end_date` are optional — a goal with no deadline
-  just has no `pace_score` and doesn't count toward the leaderboard. When
-  both are set, a subgoal's dates must fall within its parent's range.
-- A goal with subgoals has no progress of its own — its progress is always
-  the average of its subgoals' progress, recursively. A leaf goal's
-  progress is set directly (0-100%).
+  just has no `pace_score` and doesn't count toward the leaderboard.
+- A goal can have a flat checklist of `TodoTask` items. When tasks exist,
+  progress is their completion percentage; otherwise progress is set directly
+  on the goal (0-100%). Tasks cannot contain goals or other tasks.
 - `Category` is a small shared taxonomy (name + color), seeded with
   Financial/Health/Career/Personal — manage it at `/categories/`, where
   anyone can add more from a fixed color palette (`CATEGORY_PALETTE` in
@@ -32,8 +31,8 @@ GoalBoard        — a shared board (e.g. "2026 Goals")
 - A board's Kanban view has filters (keyword, category, owner, start-after,
   end-before) as plain GET params, so filtered views are shareable links.
 - **Bulk transfer**: any board can be exported to a JSON file (`Export
-  JSON`) and re-imported into any board (`Import JSON`) — the same nested
-  shape a board exports is what import expects (see
+  JSON`) and re-imported into any board (`Import JSON`) — the same goal and
+  task shape a board exports is what import expects (see
   `tracker/services/goal_io.py`). Import never overwrites existing goals;
   members and categories named in the file are created if they don't
   already exist.

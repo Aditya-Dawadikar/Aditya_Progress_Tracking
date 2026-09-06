@@ -2,7 +2,7 @@
 {% block title %}Delete board · Goalpost{% endblock %}
 {% block content %}
 <h1>Delete “{{ board.name }}”?</h1>
-<p class="hint">This deletes every goal and subgoal on this board too. This can't be undone.</p>
+<p class="hint">This deletes every goal and task on this board too. This can't be undone.</p>
 <form method="post" class="panel">
   {% csrf_token %}
   <button type="submit" class="btn btn-danger">Delete board</button>

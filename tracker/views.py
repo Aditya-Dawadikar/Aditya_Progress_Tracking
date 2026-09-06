@@ -11,8 +11,8 @@ from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from .forms import BoardFilterForm, CategoryForm, GoalBoardForm, GoalForm, GoalImportForm, MemberForm
-from .models import Category, Goal, GoalBoard, Member
+from .forms import BoardFilterForm, CategoryForm, GoalBoardForm, GoalForm, GoalImportForm, MemberForm, TodoTaskForm
+from .models import Category, Goal, GoalBoard, Member, TodoTask
 from .services import goal_io
 from .services.scoring import member_leaderboard
 
@@ -232,29 +232,18 @@ def board_import_json(request, pk):
 
 @require_member
 def goal_create(request):
-    board = None
-    parent = None
     board_id = request.GET.get("board") or request.POST.get("board")
-    parent_id = request.GET.get("parent") or request.POST.get("parent")
-    if parent_id:
-        parent = get_object_or_404(Goal, pk=parent_id)
-        if parent.owner_id != request.member.pk:
-            messages.error(request, "You can only add subgoals to your own goals.")
-            return redirect(parent.get_absolute_url())
-        board = parent.board
-    elif board_id:
-        board = get_object_or_404(GoalBoard, pk=board_id)
-    else:
-        return HttpResponseBadRequest("A board or parent goal is required.")
+    if not board_id:
+        return HttpResponseBadRequest("A board is required.")
+    board = get_object_or_404(GoalBoard, pk=board_id)
 
     if request.method == "POST":
         form = GoalForm(request.POST)
         if form.is_valid():
             goal = form.save(commit=False)
             goal.board = board
-            goal.parent = parent
             goal.owner = request.member
-            goal.order = Goal.objects.filter(parent=parent, board=board).count()
+            goal.order = Goal.objects.filter(board=board).count()
             try:
                 goal.full_clean(exclude=["board"])
             except ValidationError as exc:
@@ -262,23 +251,20 @@ def goal_create(request):
             else:
                 goal.save()
                 messages.success(request, f"Goal “{goal.title}” created.")
-                return redirect(goal.get_absolute_url() if parent else board.get_absolute_url())
+                return redirect(board.get_absolute_url())
     else:
         form = GoalForm()
 
     return render(request, "tracker/goal_form.html", {
-        "form": form, "board": board, "parent": parent, "is_new": True,
+        "form": form, "board": board, "is_new": True,
     })
 
 
 def goal_detail(request, pk):
     goal = get_object_or_404(Goal, pk=pk)
-    subgoals = list(goal.subgoals.select_related("owner", "category"))
     return render(request, "tracker/goal_detail.html", {
         "goal": goal,
-        "columns": group_by_status(subgoals),
-        "reorder_scope": "parent",
-        "reorder_scope_id": goal.pk,
+        "task_form": TodoTaskForm(),
     })
 
 
@@ -288,17 +274,16 @@ def goal_edit(request, pk):
     if goal.owner_id != request.member.pk:
         messages.error(request, "Only the goal's owner can edit it.")
         return redirect(goal.get_absolute_url())
-    has_subgoals = goal.has_subgoals
     if request.method == "POST":
-        form = GoalForm(request.POST, instance=goal, has_subgoals=has_subgoals)
+        form = GoalForm(request.POST, instance=goal)
         if form.is_valid():
             form.save()
             messages.success(request, "Goal updated.")
             return redirect(goal.get_absolute_url())
     else:
-        form = GoalForm(instance=goal, has_subgoals=has_subgoals)
+        form = GoalForm(instance=goal)
     return render(request, "tracker/goal_form.html", {
-        "form": form, "goal": goal, "board": goal.board, "parent": goal.parent, "is_new": False,
+        "form": form, "goal": goal, "board": goal.board, "is_new": False,
     })
 
 
@@ -308,7 +293,7 @@ def goal_delete(request, pk):
     if goal.owner_id != request.member.pk:
         messages.error(request, "Only the goal's owner can delete it.")
         return redirect(goal.get_absolute_url())
-    redirect_to = goal.parent.get_absolute_url() if goal.parent else goal.board.get_absolute_url()
+    redirect_to = goal.board.get_absolute_url()
     if request.method == "POST":
         title = goal.title
         goal.delete()
@@ -330,12 +315,9 @@ def goal_reorder(request):
     columns = data.get("columns", {})
     valid_statuses = dict(Goal.STATUS_CHOICES)
 
-    if scope == "board":
-        base_qs = Goal.objects.filter(board_id=scope_id, parent__isnull=True)
-    elif scope == "parent":
-        base_qs = Goal.objects.filter(parent_id=scope_id)
-    else:
+    if scope != "board":
         return HttpResponseBadRequest("Unknown scope")
+    base_qs = Goal.objects.filter(board_id=scope_id)
 
     # Only the goals the caller owns may actually be moved/reordered — a
     # shared board can hold other members' cards too, but dragging one
@@ -363,6 +345,43 @@ def goal_reorder(request):
     return JsonResponse({"ok": True})
 
 
+@require_member
+@require_POST
+def task_create(request, pk):
+    goal = get_object_or_404(Goal, pk=pk)
+    if goal.owner_id != request.member.pk:
+        return redirect(goal.get_absolute_url())
+    form = TodoTaskForm(request.POST)
+    if form.is_valid():
+        task = form.save(commit=False)
+        task.goal = goal
+        task.order = goal.tasks.count()
+        task.save()
+        messages.success(request, "Task added.")
+    return redirect(goal.get_absolute_url())
+
+
+@require_member
+@require_POST
+def task_toggle(request, pk):
+    task = get_object_or_404(TodoTask, pk=pk)
+    if task.goal.owner_id == request.member.pk:
+        task.completed = not task.completed
+        task.save(update_fields=["completed"])
+    return redirect(task.goal.get_absolute_url())
+
+
+@require_member
+@require_POST
+def task_delete(request, pk):
+    task = get_object_or_404(TodoTask, pk=pk)
+    goal = task.goal
+    if goal.owner_id == request.member.pk:
+        task.delete()
+        messages.success(request, "Task deleted.")
+    return redirect(goal.get_absolute_url())
+
+
 # ---------------------------------------------------------------------------
 # Leaderboard / profiles
 # ---------------------------------------------------------------------------
@@ -373,5 +392,5 @@ def leaderboard(request):
 
 def member_profile(request, slug):
     member = get_object_or_404(Member, slug=slug)
-    top_level = list(member.goals.filter(parent__isnull=True).select_related("board", "category"))
+    top_level = list(member.goals.select_related("board", "category"))
     return render(request, "tracker/member_profile.html", {"member": member, "goals": top_level})

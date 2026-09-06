@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import CATEGORY_PALETTE, Category, Goal, GoalBoard, Member
+from .models import CATEGORY_PALETTE, Category, Goal, GoalBoard, Member, TodoTask
 
 
 class MemberForm(forms.ModelForm):
@@ -51,13 +51,10 @@ class GoalForm(forms.ModelForm):
             "end_date": "End date (optional)",
         }
 
-    def __init__(self, *args, has_subgoals=False, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["category"].queryset = Category.objects.all()
         self.fields["category"].required = False
-        if has_subgoals:
-            # Progress is derived from subgoals once a goal has any.
-            self.fields.pop("progress_percent")
 
     def clean(self):
         cleaned = super().clean()
@@ -83,6 +80,15 @@ class BoardFilterForm(forms.Form):
             self.fields["owner"].queryset = Member.objects.filter(
                 goals__in=goals_queryset
             ).distinct()
+
+
+class TodoTaskForm(forms.ModelForm):
+    class Meta:
+        model = TodoTask
+        fields = ["title"]
+        widgets = {
+            "title": forms.TextInput(attrs={"placeholder": "Add a task"}),
+        }
 
 
 class GoalImportForm(forms.Form):

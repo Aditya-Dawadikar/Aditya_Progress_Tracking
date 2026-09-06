@@ -84,7 +84,7 @@ class GoalBoard(models.Model):
 
     @property
     def top_level_goals(self):
-        return self.goals.filter(parent__isnull=True)
+        return self.goals.all()
 
 
 class Goal(models.Model):
@@ -102,9 +102,6 @@ class Goal(models.Model):
 
     id = ObjectIdAutoField(primary_key=True)
     board = models.ForeignKey(GoalBoard, on_delete=models.CASCADE, related_name="goals")
-    parent = models.ForeignKey(
-        "self", on_delete=models.CASCADE, null=True, blank=True, related_name="subgoals"
-    )
     owner = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="goals")
 
     title = models.CharField(max_length=200)
@@ -136,16 +133,7 @@ class Goal(models.Model):
     def clean(self):
         if self.start_date and self.end_date and self.end_date <= self.start_date:
             raise ValidationError("End date must be after the start date.")
-        if self.parent_id:
-            parent = self.parent
-            if self.start_date and parent.start_date and self.start_date < parent.start_date:
-                raise ValidationError("A subgoal can't start before its parent goal.")
-            if self.end_date and parent.end_date and self.end_date > parent.end_date:
-                raise ValidationError("A subgoal can't end after its parent goal.")
-
     def save(self, *args, **kwargs):
-        if self.parent_id:
-            self.board_id = self.parent.board_id
         was_completed = False
         if self.pk:
             was_completed = Goal.objects.filter(pk=self.pk).values_list("status", flat=True).first() == self.STATUS_COMPLETED
@@ -158,16 +146,16 @@ class Goal(models.Model):
         super().save(*args, **kwargs)
 
     @property
-    def has_subgoals(self):
-        return self.subgoals.exists()
+    def has_tasks(self):
+        return self.tasks.exists()
 
     @property
     def effective_progress(self):
-        """Own progress_percent for leaf goals; average of subgoals otherwise."""
-        children = list(self.subgoals.all())
-        if not children:
+        """Own progress_percent unless tasks exist, then task completion percentage."""
+        tasks = list(self.tasks.all())
+        if not tasks:
             return self.progress_percent
-        return round(sum(c.effective_progress for c in children) / len(children))
+        return round(sum(task.completed for task in tasks) * 100 / len(tasks))
 
     @property
     def time_fraction(self):
@@ -200,8 +188,19 @@ class Goal(models.Model):
             return False
         return self.status not in (self.STATUS_COMPLETED, self.STATUS_ABANDONED) and timezone.localdate() > self.end_date
 
-    def reorder_siblings_queryset(self):
-        qs = Goal.objects.filter(parent=self.parent)
-        if self.parent_id is None:
-            qs = qs.filter(board=self.board)
-        return qs
+
+class TodoTask(models.Model):
+    """A single, non-nestable checklist item belonging to one goal."""
+
+    id = ObjectIdAutoField(primary_key=True)
+    goal = models.ForeignKey(Goal, on_delete=models.CASCADE, related_name="tasks")
+    title = models.CharField(max_length=200)
+    completed = models.BooleanField(default=False)
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["order", "id"]
+
+    def __str__(self):
+        return self.title

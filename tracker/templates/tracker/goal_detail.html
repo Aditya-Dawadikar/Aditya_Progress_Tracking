@@ -4,7 +4,6 @@
 {% block content %}
 <p class="breadcrumb">
   <a href="{{ goal.board.get_absolute_url }}">{{ goal.board.name }}</a>
-  {% if goal.parent %} &rsaquo; <a href="{{ goal.parent.get_absolute_url }}">{{ goal.parent.title }}</a>{% endif %}
 </p>
 
 <div class="goal-detail-header">
@@ -38,18 +37,30 @@
   {% if request.member and request.member.pk == goal.owner_id %}
     <a href="{% url 'tracker:goal_edit' goal.pk %}" class="btn">Edit</a>
     <a href="{% url 'tracker:goal_delete' goal.pk %}" class="btn btn-danger">Delete</a>
-    <a href="{% url 'tracker:goal_create' %}?parent={{ goal.pk }}" class="btn btn-primary">New subgoal</a>
   {% endif %}
 </div>
 
-<h2>Subgoals</h2>
-{% if goal.subgoals.all %}
-  {% include "tracker/_kanban.html" %}
-{% else %}
-  <p class="empty-state">No subgoals yet — progress is tracked directly on this goal.</p>
-{% endif %}
-{% endblock %}
-
-{% block extra_js %}
-<script src="{% static 'tracker/js/board.js' %}"></script>
+<section class="task-list">
+  <h2>Tasks</h2>
+  {% if request.member and request.member.pk == goal.owner_id %}
+    <form method="post" action="{% url 'tracker:task_create' goal.pk %}" class="task-create-form">
+      {% csrf_token %}{{ task_form.title }}<button type="submit" class="btn btn-primary">Add task</button>
+    </form>
+  {% endif %}
+  {% if goal.tasks.all %}
+    <ul>
+      {% for task in goal.tasks.all %}
+        <li class="task-item{% if task.completed %} task-completed{% endif %}">
+          {% if request.member and request.member.pk == goal.owner_id %}
+            <form method="post" action="{% url 'tracker:task_toggle' task.pk %}">{% csrf_token %}<button type="submit" class="task-toggle" aria-label="Toggle {{ task.title }}">{% if task.completed %}&#10003;{% endif %}</button></form>
+          {% endif %}
+          <span>{{ task.title }}</span>
+          {% if request.member and request.member.pk == goal.owner_id %}<form method="post" action="{% url 'tracker:task_delete' task.pk %}">{% csrf_token %}<button type="submit" class="task-delete" aria-label="Delete {{ task.title }}">&times;</button></form>{% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="empty-state">No tasks yet. Add tasks to track this goal.</p>
+  {% endif %}
+</section>
 {% endblock %}

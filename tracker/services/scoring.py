@@ -17,7 +17,7 @@ def member_leaderboard():
     """
     rows = []
     for member in Member.objects.all():
-        top_level = member.goals.filter(parent__isnull=True).exclude(status=Goal.STATUS_ABANDONED)
+        top_level = member.goals.exclude(status=Goal.STATUS_ABANDONED)
         scores = [s for s in (g.pace_score for g in top_level) if s is not None]
         member.score = round(sum(scores) / len(scores), 1) if scores else None
         member.active_goal_count = top_level.exclude(status=Goal.STATUS_COMPLETED).count()

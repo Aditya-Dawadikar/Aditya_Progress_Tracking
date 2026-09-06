@@ -1,9 +1,4 @@
-"""JSON export/import for bulk-transferring a board's goals.
-
-Export produces a tree matching the shape import expects, so a board's
-goals.json can be downloaded and re-imported (into the same board, a
-different board, or a different deployment entirely) without hand-editing.
-"""
+"""JSON export/import for boards and their non-nestable goal tasks."""
 import itertools
 
 from django.core.exceptions import ValidationError
@@ -25,12 +20,12 @@ def _serialize_goal(goal):
         "start_date": goal.start_date.isoformat() if goal.start_date else None,
         "end_date": goal.end_date.isoformat() if goal.end_date else None,
         "progress_percent": goal.progress_percent,
-        "subgoals": [_serialize_goal(child) for child in goal.subgoals.all()],
+        "tasks": [{"title": task.title, "completed": task.completed} for task in goal.tasks.all()],
     }
 
 
 def export_board(board):
-    top_level = board.top_level_goals.select_related("owner", "category").prefetch_related("subgoals")
+    top_level = board.top_level_goals.select_related("owner", "category").prefetch_related("tasks")
     return {
         "schema_version": SCHEMA_VERSION,
         "board": {"name": board.name, "description": board.description},
@@ -65,8 +60,14 @@ def _validate_node(node, path, errors):
         value = node.get(field)
         if value is not None and not isinstance(value, str):
             errors.append(f"{path}.{field}: must be an ISO date string or null")
-    for i, child in enumerate(node.get("subgoals") or []):
-        _validate_node(child, f"{path}.subgoals[{i}]", errors)
+    tasks = node.get("tasks") or []
+    if not isinstance(tasks, list):
+        errors.append(f"{path}.tasks: must be a list")
+    for i, task in enumerate(tasks):
+        if not isinstance(task, dict) or not isinstance(task.get("title"), str) or not task["title"].strip():
+            errors.append(f"{path}.tasks[{i}].title: required")
+        elif not isinstance(task.get("completed", False), bool):
+            errors.append(f"{path}.tasks[{i}].completed: must be true or false")
 
 
 def validate_import(data):
@@ -100,7 +101,7 @@ def _get_category(name, cache):
     return category
 
 
-def _create_goal(node, board, parent, default_owner, category_cache):
+def _create_goal(node, board, default_owner, category_cache):
     # Every imported goal is owned by whoever is running the import — never
     # by an `owner` name taken from the file itself. Otherwise anyone could
     # craft a JSON file naming a real member as "owner" of fabricated goals
@@ -108,7 +109,6 @@ def _create_goal(node, board, parent, default_owner, category_cache):
     # involvement (the same rule goal_create/goal_reorder already enforce).
     goal = Goal(
         board=board,
-        parent=parent,
         owner=default_owner,
         title=node["title"].strip(),
         description=node.get("description") or "",
@@ -117,12 +117,14 @@ def _create_goal(node, board, parent, default_owner, category_cache):
         start_date=node.get("start_date") or None,
         end_date=node.get("end_date") or None,
         progress_percent=node.get("progress_percent") or 0,
-        order=Goal.objects.filter(parent=parent, board=board).count(),
+        order=Goal.objects.filter(board=board).count(),
     )
     goal.full_clean(exclude=["board"])
     goal.save()
-    for child in node.get("subgoals") or []:
-        _create_goal(child, board, goal, default_owner, category_cache)
+    for order, task_data in enumerate(node.get("tasks") or []):
+        goal.tasks.create(
+            title=task_data["title"].strip(), completed=task_data.get("completed", False), order=order
+        )
     return goal
 
 
@@ -131,8 +133,7 @@ def import_goals(board, data, default_owner):
     owned by `default_owner` (see _create_goal for why).
 
     Raises GoalImportError with a list of errors and creates nothing if the
-    document is invalid. Returns the count of goals created (including
-    subgoals) on success.
+    document is invalid. Returns the count of goals created on success.
     """
     errors = validate_import(data)
     if errors:
@@ -143,12 +144,8 @@ def import_goals(board, data, default_owner):
     with transaction.atomic():
         for node in data["goals"]:
             try:
-                _create_goal(node, board, None, default_owner, category_cache)
+                _create_goal(node, board, default_owner, category_cache)
             except ValidationError as exc:
                 raise GoalImportError([str(exc)])
-            created += 1 + _count_subgoals(node)
+            created += 1
     return created
-
-
-def _count_subgoals(node):
-    return sum(1 + _count_subgoals(child) for child in node.get("subgoals") or [])

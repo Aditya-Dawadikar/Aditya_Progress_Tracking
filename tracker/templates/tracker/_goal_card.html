@@ -16,7 +16,7 @@
       <span class="due-date{% if goal.is_overdue %} overdue{% endif %}">
         {% if goal.end_date %}Due {{ goal.end_date|date:"M j, Y" }}{% else %}No deadline{% endif %}
       </span>
-      {% if goal.has_subgoals %}<span class="subgoal-count">{{ goal.subgoals.count }} subgoal{{ goal.subgoals.count|pluralize }}</span>{% endif %}
+      {% if goal.has_tasks %}<span class="task-count">{{ goal.tasks.count }} task{{ goal.tasks.count|pluralize }}</span>{% endif %}
     </div>
   </div>
 </li>

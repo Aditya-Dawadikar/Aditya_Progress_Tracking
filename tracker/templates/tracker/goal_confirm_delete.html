@@ -2,8 +2,8 @@
 {% block title %}Delete goal · Goalpost{% endblock %}
 {% block content %}
 <h1>Delete “{{ goal.title }}”?</h1>
-{% if goal.has_subgoals %}
-  <p class="hint">This deletes all of its subgoals too. This can't be undone.</p>
+{% if goal.has_tasks %}
+  <p class="hint">This deletes all of its tasks too. This can't be undone.</p>
 {% endif %}
 <form method="post" class="panel">
   {% csrf_token %}

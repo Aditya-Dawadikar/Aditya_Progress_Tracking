@@ -27,10 +27,9 @@ class Command(BaseCommand):
             defaults={"description": "Personal goals for the year.", "created_by": alex},
         )
 
-        def make_goal(owner, title, category, status, start_offset=None, end_offset=None, progress=0, parent=None, order=0):
+        def make_goal(owner, title, category, status, start_offset=None, end_offset=None, progress=0, order=0):
             goal, created = Goal.objects.get_or_create(
                 board=board,
-                parent=parent,
                 title=title,
                 defaults=dict(
                     owner=owner,
@@ -44,12 +43,12 @@ class Command(BaseCommand):
             )
             return goal
 
-        # Alex: ahead of schedule, has subgoals.
+        # Alex: ahead of schedule, with a focused task list.
         save = make_goal(alex, "Save $10,000", "Financial", Goal.STATUS_IN_PROGRESS, -60, 30, order=0)
-        make_goal(alex, "Save first $5,000", "Financial", Goal.STATUS_COMPLETED, -60, -20, progress=100, parent=save, order=0)
-        make_goal(alex, "Save next $5,000", "Financial", Goal.STATUS_IN_PROGRESS, -20, 30, progress=70, parent=save, order=1)
+        save.tasks.create(title="Save first $5,000", completed=True, order=0)
+        save.tasks.create(title="Save next $5,000", completed=False, order=1)
 
-        # Sam: right on pace, no subgoals.
+        # Sam: right on pace, no tasks.
         make_goal(sam, "Run a 5k", "Health", Goal.STATUS_IN_PROGRESS, -30, 30, progress=48, order=0)
 
         # Jordan: behind schedule.
