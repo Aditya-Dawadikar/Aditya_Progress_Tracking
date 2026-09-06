@@ -10,6 +10,13 @@ urlpatterns = [
     path("whoami/", views.whoami, name="whoami"),
     path("whoami/logout/", views.whoami_logout, name="whoami_logout"),
 
+    path("events/", views.events_list, name="events_list"),
+    path("events/new/", views.event_create, name="event_create"),
+    path("events/<str:pk>/", views.event_detail, name="event_detail"),
+    path("events/<str:pk>/edit/", views.event_edit, name="event_edit"),
+    path("events/<str:pk>/delete/", views.event_delete, name="event_delete"),
+    path("events/<str:pk>/comments/", views.event_comment_create, name="event_comment_create"),
+
     path("boards/new/", views.board_create, name="board_create"),
     path("boards/<str:pk>/", views.board_detail, name="board_detail"),
     path("boards/<str:pk>/settings/", views.board_settings, name="board_settings"),

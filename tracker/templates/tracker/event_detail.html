@@ -1,0 +1,7 @@
+{% extends "tracker/base.html" %}
+{% block title %}{{ event.title }} · Goalpost{% endblock %}
+{% block content %}
+<p class="breadcrumb"><a href="{% url 'tracker:events_list' %}">Events</a></p>
+<div class="page-header"><div><h1>{{ event.title }}</h1><p class="hint">{{ event.date|date:"l, M j, Y" }}</p>{% if event.description %}<p>{{ event.description|linebreaksbr }}</p>{% endif %}{% if event.participants.all %}<p class="hint">Participants: {% for member in event.participants.all %}{{ member.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>{% else %}<p class="hint">No participants assigned.</p>{% endif %}</div>{% if request.member and request.member.pk == event.created_by_id %}<div class="page-header-actions"><a href="{% url 'tracker:event_edit' event.pk %}" class="btn">Edit</a><a href="{% url 'tracker:event_delete' event.pk %}" class="btn btn-danger">Delete</a></div>{% endif %}</div>
+<section class="goal-comments"><h2>Comments</h2>{% if event.comments.all %}<ul class="comment-list">{% for comment in event.comments.all %}<li><strong>{{ comment.author.name }}</strong><time datetime="{{ comment.created_at|date:'c' }}">{{ comment.created_at|date:"M j, Y, P" }}</time><p>{{ comment.text|linebreaksbr }}</p></li>{% endfor %}</ul>{% else %}<p class="empty-state">No comments yet.</p>{% endif %}{% if request.member %}<form method="post" action="{% url 'tracker:event_comment_create' event.pk %}" class="goal-comment-form">{% csrf_token %}{{ comment_form.text }}<button type="submit" class="btn">Comment</button></form>{% endif %}</section>
+{% endblock %}

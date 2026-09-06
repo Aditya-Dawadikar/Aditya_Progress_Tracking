@@ -332,6 +332,16 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
   .filter-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .filter-actions { display: flex; gap: 8px; grid-column: 1 / -1; }
+.event-past-toggle { align-self: end; padding-bottom: 10px; }
+.event-past-toggle input { width: auto; padding: 0; }
+.event-list { display: grid; gap: 8px; }
+.event-row { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 14px; padding: 14px; border: 1px solid var(--panel-border); border-radius: 8px; background: var(--panel); color: var(--text); }
+.event-row:hover { border-color: var(--accent); text-decoration: none; }
+.event-row time { color: var(--accent); font-size: 13px; font-weight: 600; }
+.event-row h2 { margin: 0 0 3px; font-size: 16px; }
+.event-row p, .event-row small { margin: 0; color: var(--text-dim); font-size: 13px; }
+.event-past { opacity: 0.65; }
+@media (max-width: 600px) { .event-row { grid-template-columns: 1fr; gap: 4px; } }
 
 /* ------------------------------------------------------------------ tasks */
 

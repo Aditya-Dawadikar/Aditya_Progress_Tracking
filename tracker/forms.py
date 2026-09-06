@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import CATEGORY_PALETTE, Category, Goal, GoalBoard, Member, TodoTask, GoalComment, TodoTaskComment
+from .models import CATEGORY_PALETTE, Category, Event, EventComment, Goal, GoalBoard, Member, TodoTask, GoalComment, TodoTaskComment
 
 
 class MemberForm(forms.ModelForm):
@@ -126,4 +126,36 @@ class TodoTaskCommentForm(forms.ModelForm):
         fields = ["text"]
         widgets = {
             "text": forms.TextInput(attrs={"placeholder": "Add a comment"}),
+        }
+
+
+class EventForm(forms.ModelForm):
+    class Meta:
+        model = Event
+        fields = ["title", "description", "date", "participants"]
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 3}),
+            "date": forms.DateInput(attrs={"type": "date"}),
+            "participants": forms.SelectMultiple(attrs={"size": 4}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["participants"].queryset = Member.objects.all()
+
+
+class EventFilterForm(forms.Form):
+    q = forms.CharField(required=False, label="Keyword")
+    participant = forms.ModelChoiceField(queryset=Member.objects.all(), required=False)
+    start_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
+    end_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
+    include_past = forms.BooleanField(required=False, label="Include past events")
+
+
+class EventCommentForm(forms.ModelForm):
+    class Meta:
+        model = EventComment
+        fields = ["text"]
+        widgets = {
+            "text": forms.Textarea(attrs={"rows": 2, "placeholder": "Add a comment"}),
         }

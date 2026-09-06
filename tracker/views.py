@@ -8,11 +8,12 @@ from django.db.models import Q
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from .forms import BoardFilterForm, CategoryForm, DeleteConfirmationForm, GoalBoardForm, GoalCommentForm, GoalForm, GoalImportForm, MemberForm, TodoTaskCommentForm, TodoTaskForm
-from .models import Category, Goal, GoalActivity, GoalBoard, GoalComment, Member, TodoTask, TodoTaskComment
+from .forms import BoardFilterForm, CategoryForm, DeleteConfirmationForm, EventCommentForm, EventFilterForm, EventForm, GoalBoardForm, GoalCommentForm, GoalForm, GoalImportForm, MemberForm, TodoTaskCommentForm, TodoTaskForm
+from .models import Category, Event, EventComment, Goal, GoalActivity, GoalBoard, GoalComment, Member, TodoTask, TodoTaskComment
 from .services import goal_io
 from .services.scoring import member_leaderboard
 
@@ -83,6 +84,98 @@ def whoami_logout(request):
     request.session.pop("member_id", None)
     messages.info(request, "Signed out.")
     return redirect(safe_next_url(request, request.GET.get("next")))
+
+
+# ---------------------------------------------------------------------------
+# Events
+# ---------------------------------------------------------------------------
+
+def events_list(request):
+    events = Event.objects.all()
+    filter_form = EventFilterForm(request.GET or None)
+    if filter_form.is_valid():
+        data = filter_form.cleaned_data
+        if not data["include_past"]:
+            events = events.filter(date__gte=timezone.localdate())
+        if data["q"]:
+            events = events.filter(Q(title__icontains=data["q"]) | Q(description__icontains=data["q"]))
+        if data["participant"]:
+            events = events.filter(participants=data["participant"])
+        if data["start_date"]:
+            events = events.filter(date__gte=data["start_date"])
+        if data["end_date"]:
+            events = events.filter(date__lte=data["end_date"])
+    return render(request, "tracker/events_list.html", {"events": events, "filter_form": filter_form})
+
+
+@require_member
+def event_create(request):
+    if request.method == "POST":
+        form = EventForm(request.POST)
+        if form.is_valid():
+            event = form.save(commit=False)
+            event.created_by = request.member
+            event.save()
+            form.save_m2m()
+            messages.success(request, f"Event “{event.title}” created.")
+            return redirect(event.get_absolute_url())
+    else:
+        form = EventForm()
+    return render(request, "tracker/event_form.html", {"form": form, "is_new": True})
+
+
+def event_detail(request, pk):
+    event = get_object_or_404(Event, pk=pk)
+    return render(request, "tracker/event_detail.html", {"event": event, "comment_form": EventCommentForm()})
+
+
+@require_member
+def event_edit(request, pk):
+    event = get_object_or_404(Event, pk=pk)
+    if event.created_by_id != request.member.pk:
+        messages.error(request, "Only the event's creator can edit it.")
+        return redirect(event.get_absolute_url())
+    if request.method == "POST":
+        form = EventForm(request.POST, instance=event)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Event updated.")
+            return redirect(event.get_absolute_url())
+    else:
+        form = EventForm(instance=event)
+    return render(request, "tracker/event_form.html", {"form": form, "event": event, "is_new": False})
+
+
+@require_member
+def event_delete(request, pk):
+    event = get_object_or_404(Event, pk=pk)
+    if event.created_by_id != request.member.pk:
+        messages.error(request, "Only the event's creator can delete it.")
+        return redirect(event.get_absolute_url())
+    if request.method == "POST":
+        form = DeleteConfirmationForm(request.POST)
+        if form.is_valid() and form.cleaned_data["name"] == event.title:
+            event.delete()
+            messages.success(request, "Event deleted.")
+            return redirect("tracker:events_list")
+        form.add_error("name", "The name does not match this event.")
+    else:
+        form = DeleteConfirmationForm()
+    return render(request, "tracker/event_confirm_delete.html", {"event": event, "form": form})
+
+
+@require_member
+@require_POST
+def event_comment_create(request, pk):
+    event = get_object_or_404(Event, pk=pk)
+    form = EventCommentForm(request.POST)
+    if form.is_valid():
+        comment = form.save(commit=False)
+        comment.event = event
+        comment.author = request.member
+        comment.save()
+        messages.success(request, "Comment added.")
+    return redirect(event.get_absolute_url())
 
 
 # ---------------------------------------------------------------------------

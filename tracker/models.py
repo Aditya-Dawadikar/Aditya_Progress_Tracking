@@ -265,3 +265,40 @@ class TodoTaskComment(models.Model):
 
     class Meta:
         ordering = ["created_at", "id"]
+
+
+class Event(models.Model):
+    """A dated shared event, separate from goals and task activity."""
+
+    id = ObjectIdAutoField(primary_key=True)
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    date = models.DateField()
+    created_by = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="events_created")
+    participants = models.ManyToManyField(Member, blank=True, related_name="events")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["date", "title"]
+
+    def __str__(self):
+        return self.title
+
+    def get_absolute_url(self):
+        return reverse("tracker:event_detail", args=[self.pk])
+
+    @property
+    def is_past(self):
+        return self.date < timezone.localdate()
+
+
+class EventComment(models.Model):
+    id = ObjectIdAutoField(primary_key=True)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="comments")
+    author = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="event_comments")
+    text = models.TextField(max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]

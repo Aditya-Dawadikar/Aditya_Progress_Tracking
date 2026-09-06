@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Category, Goal, GoalActivity, GoalBoard, GoalComment, Member, TodoTask, TodoTaskComment
+from .models import Category, Event, EventComment, Goal, GoalActivity, GoalBoard, GoalComment, Member, TodoTask, TodoTaskComment
 from .services import goal_io
 from .services.scoring import member_leaderboard
 
@@ -111,6 +111,18 @@ class ScoringServiceTests(TestCase):
         ranked = member_leaderboard()
         row = next(m for m in ranked if m.name == "NoDeadline")
         self.assertIsNone(row.score)
+
+
+class EventModelTests(TestCase):
+    def test_event_tracks_participants_and_comment_author(self):
+        creator = Member.objects.create(name="Alex")
+        participant = Member.objects.create(name="Sam")
+        event = Event.objects.create(title="Planning day", date=days(3), created_by=creator)
+        event.participants.add(creator, participant)
+        comment = EventComment.objects.create(event=event, author=participant, text="I'll be there.")
+        self.assertFalse(event.is_past)
+        self.assertEqual(list(event.participants.all()), [creator, participant])
+        self.assertEqual(event.comments.get(), comment)
 
 
 class ViewSmokeTests(TestCase):
