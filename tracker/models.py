@@ -228,3 +228,40 @@ class TodoTask(models.Model):
         if days_remaining == 0:
             return "Due today"
         return f"{days_remaining} day{'s' if days_remaining != 1 else ''} left"
+
+
+class GoalActivity(models.Model):
+    """An immutable audit event for a goal or one of its tasks."""
+
+    id = ObjectIdAutoField(primary_key=True)
+    goal = models.ForeignKey(Goal, on_delete=models.CASCADE, related_name="activity")
+    task = models.ForeignKey(TodoTask, on_delete=models.CASCADE, null=True, blank=True, related_name="activity")
+    actor = models.ForeignKey(Member, on_delete=models.SET_NULL, null=True, related_name="goal_activity")
+    action = models.CharField(max_length=50)
+    detail = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+
+class GoalComment(models.Model):
+    id = ObjectIdAutoField(primary_key=True)
+    goal = models.ForeignKey(Goal, on_delete=models.CASCADE, related_name="comments")
+    author = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="goal_comments")
+    text = models.TextField(max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+
+
+class TodoTaskComment(models.Model):
+    id = ObjectIdAutoField(primary_key=True)
+    task = models.ForeignKey(TodoTask, on_delete=models.CASCADE, related_name="comments")
+    author = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="task_comments")
+    text = models.TextField(max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]

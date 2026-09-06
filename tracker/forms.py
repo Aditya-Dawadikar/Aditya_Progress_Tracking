@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import CATEGORY_PALETTE, Category, Goal, GoalBoard, Member, TodoTask
+from .models import CATEGORY_PALETTE, Category, Goal, GoalBoard, Member, TodoTask, GoalComment, TodoTaskComment
 
 
 class MemberForm(forms.ModelForm):
@@ -109,3 +109,21 @@ class GoalImportForm(forms.Form):
 
 class DeleteConfirmationForm(forms.Form):
     name = forms.CharField(label="Type the item name to confirm")
+
+
+class GoalCommentForm(forms.ModelForm):
+    class Meta:
+        model = GoalComment
+        fields = ["text"]
+        widgets = {
+            "text": forms.Textarea(attrs={"rows": 2, "placeholder": "Add a comment"}),
+        }
+
+
+class TodoTaskCommentForm(forms.ModelForm):
+    class Meta:
+        model = TodoTaskComment
+        fields = ["text"]
+        widgets = {
+            "text": forms.TextInput(attrs={"placeholder": "Add a comment"}),
+        }

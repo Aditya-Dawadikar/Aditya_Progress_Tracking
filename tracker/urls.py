@@ -23,9 +23,11 @@ urlpatterns = [
     path("goals/<str:pk>/", views.goal_detail, name="goal_detail"),
     path("goals/<str:pk>/edit/", views.goal_edit, name="goal_edit"),
     path("goals/<str:pk>/delete/", views.goal_delete, name="goal_delete"),
+    path("goals/<str:pk>/comments/", views.goal_comment_create, name="goal_comment_create"),
     path("goals/<str:pk>/tasks/", views.task_create, name="task_create"),
     path("tasks/<str:pk>/toggle/", views.task_toggle, name="task_toggle"),
     path("tasks/<str:pk>/delete/", views.task_delete, name="task_delete"),
+    path("tasks/<str:pk>/comments/", views.task_comment_create, name="task_comment_create"),
 
     path("reorder/", views.goal_reorder, name="goal_reorder"),
 

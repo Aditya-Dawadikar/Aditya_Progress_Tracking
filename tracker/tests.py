@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Category, Goal, GoalBoard, Member, TodoTask
+from .models import Category, Goal, GoalActivity, GoalBoard, GoalComment, Member, TodoTask, TodoTaskComment
 from .services import goal_io
 from .services.scoring import member_leaderboard
 
@@ -46,6 +46,16 @@ class GoalModelTests(TestCase):
         self.assertEqual(overdue.deadline_label, "Overdue by 2 days")
         self.assertFalse(upcoming.is_overdue)
         self.assertEqual(upcoming.deadline_label, "3 days left")
+
+    def test_goal_activity_and_comments_are_attributed_to_members(self):
+        goal = self.make_goal()
+        task = TodoTask.objects.create(goal=goal, title="Task")
+        event = GoalActivity.objects.create(goal=goal, task=task, actor=self.member, action="task_created")
+        goal_comment = GoalComment.objects.create(goal=goal, author=self.member, text="Goal note")
+        task_comment = TodoTaskComment.objects.create(task=task, author=self.member, text="Task note")
+        self.assertEqual(goal.activity.get(), event)
+        self.assertEqual(goal.comments.get(), goal_comment)
+        self.assertEqual(task.comments.get(), task_comment)
 
     def test_completing_a_goal_sets_full_progress(self):
         goal = self.make_goal(progress_percent=10)

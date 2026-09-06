@@ -4,7 +4,7 @@ import itertools
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from tracker.models import CATEGORY_PALETTE, Category, Goal
+from tracker.models import CATEGORY_PALETTE, Category, Goal, GoalActivity
 
 SCHEMA_VERSION = "1.0"
 VALID_STATUSES = dict(Goal.STATUS_CHOICES)
@@ -131,13 +131,15 @@ def _create_goal(node, board, default_owner, category_cache):
     )
     goal.full_clean(exclude=["board"])
     goal.save()
+    GoalActivity.objects.create(goal=goal, actor=default_owner, action="goal_imported", detail="Imported this goal.")
     for order, task_data in enumerate(node.get("tasks") or []):
-        goal.tasks.create(
+        task = goal.tasks.create(
             title=task_data["title"].strip(),
             completed=task_data.get("completed", False),
             due_date=task_data.get("due_date") or None,
             order=order,
         )
+        GoalActivity.objects.create(goal=goal, task=task, actor=default_owner, action="task_imported", detail=f"Imported task: {task.title}")
     return goal
 
 

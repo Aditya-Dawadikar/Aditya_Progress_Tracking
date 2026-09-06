@@ -354,10 +354,24 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .task-deadline { flex: 0 0 auto; color: var(--text-dim); font-size: 12px; white-space: nowrap; }
 .task-assignees { color: var(--text-dim); font-size: 12px; }
 .task-overdue { color: var(--bad); font-weight: 600; }
+.task-comments { flex: 0 0 auto; color: var(--text-dim); font-size: 12px; }
+.task-comments summary { cursor: pointer; }
+.task-comments p { margin: 6px 0; }
+.task-comments form { display: flex; gap: 6px; margin-top: 6px; }
+.task-comments input { min-width: 140px; padding: 5px 7px; font-size: 12px; }
+.task-comments .btn { padding: 5px 8px; font-size: 12px; }
 .task-toggle, .task-delete { width: 24px; height: 24px; padding: 0; border: 1px solid var(--panel-border); border-radius: 4px; background: var(--panel); color: var(--good); cursor: pointer; }
 .task-delete { border-color: transparent; color: var(--text-dim); font-size: 20px; line-height: 1; }
 .task-delete:hover { color: var(--bad); }
 @media (max-width: 600px) { .task-create-form { grid-template-columns: 1fr; } }
+
+.goal-comments, .activity-history { margin-top: 28px; }
+.comment-list, .activity-history ul { display: grid; gap: 8px; padding: 0; margin: 0; list-style: none; }
+.comment-list li, .activity-history li { padding: 10px; border-left: 3px solid var(--panel-border); background: var(--panel); }
+.comment-list p { margin: 4px 0 0; }
+.comment-list time, .activity-history time { display: block; margin-top: 2px; color: var(--text-dim); font-size: 12px; }
+.goal-comment-form { display: grid; gap: 8px; margin-top: 10px; }
+.goal-comment-form .btn { justify-self: start; }
 
 /* --------------------------------------------------------------- kanban */
 

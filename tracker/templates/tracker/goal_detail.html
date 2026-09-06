@@ -64,12 +64,48 @@
           <span>{{ task.title }}</span>
           {% if task.assignees.all %}<small class="task-assignees">{% for member in task.assignees.all %}{{ member.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</small>{% endif %}
           {% if task.deadline_label %}<small class="task-deadline{% if task.is_overdue %} task-overdue{% endif %}">{{ task.deadline_label }}</small>{% endif %}
+          <details class="task-comments">
+            <summary>Comments ({{ task.comments.count }})</summary>
+            {% for comment in task.comments.all %}<p><strong>{{ comment.author.name }}</strong> {{ comment.text }}</p>{% empty %}<p>No comments yet.</p>{% endfor %}
+            {% if request.member %}<form method="post" action="{% url 'tracker:task_comment_create' task.pk %}">{% csrf_token %}<input name="text" maxlength="2000" placeholder="Add a comment" required><button type="submit" class="btn">Comment</button></form>{% endif %}
+          </details>
           {% if request.member and request.member.pk == goal.owner_id %}<a href="{% url 'tracker:task_delete' task.pk %}" class="task-delete" aria-label="Delete {{ task.title }}">&times;</a>{% endif %}
         </li>
       {% endfor %}
     </ul>
   {% else %}
     <p class="empty-state">No tasks yet. Add tasks to track this goal.</p>
+  {% endif %}
+</section>
+
+<section class="goal-comments">
+  <h2>Comments</h2>
+  {% if goal.comments.all %}
+    <ul class="comment-list">
+      {% for comment in goal.comments.all %}
+        <li><strong>{{ comment.author.name }}</strong><time datetime="{{ comment.created_at|date:'c' }}">{{ comment.created_at|date:"M j, Y, P" }}</time><p>{{ comment.text|linebreaksbr }}</p></li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="empty-state">No comments yet.</p>
+  {% endif %}
+  {% if request.member %}
+    <form method="post" action="{% url 'tracker:goal_comment_create' goal.pk %}" class="goal-comment-form">
+      {% csrf_token %}{{ goal_comment_form.text }}<button type="submit" class="btn">Comment</button>
+    </form>
+  {% endif %}
+</section>
+
+<section class="activity-history">
+  <h2>History</h2>
+  {% if goal.activity.all %}
+    <ul>
+      {% for event in goal.activity.all %}
+        <li><time datetime="{{ event.created_at|date:'c' }}">{{ event.created_at|date:"M j, Y, P" }}</time><strong>{{ event.actor.name|default:"System" }}</strong> {{ event.detail|default:event.action }}</li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="empty-state">No activity recorded yet.</p>
   {% endif %}
 </section>
 {% endblock %}

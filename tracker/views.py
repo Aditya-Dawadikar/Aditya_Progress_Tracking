@@ -11,8 +11,8 @@ from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from .forms import BoardFilterForm, CategoryForm, DeleteConfirmationForm, GoalBoardForm, GoalForm, GoalImportForm, MemberForm, TodoTaskForm
-from .models import Category, Goal, GoalBoard, Member, TodoTask
+from .forms import BoardFilterForm, CategoryForm, DeleteConfirmationForm, GoalBoardForm, GoalCommentForm, GoalForm, GoalImportForm, MemberForm, TodoTaskCommentForm, TodoTaskForm
+from .models import Category, Goal, GoalActivity, GoalBoard, GoalComment, Member, TodoTask, TodoTaskComment
 from .services import goal_io
 from .services.scoring import member_leaderboard
 
@@ -44,6 +44,10 @@ def group_by_status(goals):
         {"key": key, "label": label, "goals": buckets[key]}
         for key, label in Goal.STATUS_CHOICES
     ]
+
+
+def record_activity(goal, actor, action, detail="", task=None):
+    GoalActivity.objects.create(goal=goal, actor=actor, action=action, detail=detail, task=task)
 
 
 # ---------------------------------------------------------------------------
@@ -271,6 +275,9 @@ def goal_create(request):
             else:
                 goal.save()
                 form.save_m2m()
+                record_activity(goal, request.member, "goal_created", "Created this goal.")
+                if goal.assignees.exists():
+                    record_activity(goal, request.member, "goal_assignees_updated", "Assigned: " + ", ".join(goal.assignees.values_list("name", flat=True)))
                 messages.success(request, f"Goal “{goal.title}” created.")
                 return redirect(board.get_absolute_url())
     else:
@@ -286,6 +293,8 @@ def goal_detail(request, pk):
     return render(request, "tracker/goal_detail.html", {
         "goal": goal,
         "task_form": TodoTaskForm(),
+        "goal_comment_form": GoalCommentForm(),
+        "task_comment_form": TodoTaskCommentForm(),
     })
 
 
@@ -298,7 +307,14 @@ def goal_edit(request, pk):
     if request.method == "POST":
         form = GoalForm(request.POST, instance=goal, board=goal.board)
         if form.is_valid():
+            changed_fields = form.changed_data
             form.save()
+            if "assignees" in changed_fields:
+                names = ", ".join(goal.assignees.values_list("name", flat=True)) or "Unassigned"
+                record_activity(goal, request.member, "goal_assignees_updated", f"Assigned: {names}")
+            other_changes = [field.replace("_", " ") for field in changed_fields if field != "assignees"]
+            if other_changes:
+                record_activity(goal, request.member, "goal_updated", "Updated: " + ", ".join(other_changes))
             messages.success(request, "Goal updated.")
             return redirect(goal.get_absolute_url())
     else:
@@ -364,9 +380,12 @@ def goal_reorder(request):
                     continue
                 goal = Goal.objects.get(pk=gid)
                 if goal.status != status or goal.order != index:
+                    previous_status = goal.status
                     goal.status = status
                     goal.order = index
                     goal.save()
+                    if previous_status != status:
+                        record_activity(goal, request.member, "goal_status_changed", f"Status changed to {valid_statuses[status]}.")
 
     return JsonResponse({"ok": True})
 
@@ -384,6 +403,9 @@ def task_create(request, pk):
         task.order = goal.tasks.count()
         task.save()
         form.save_m2m()
+        record_activity(goal, request.member, "task_created", f"Added task: {task.title}", task=task)
+        if task.assignees.exists():
+            record_activity(goal, request.member, "task_assignees_updated", "Assigned: " + ", ".join(task.assignees.values_list("name", flat=True)), task=task)
         messages.success(request, "Task added.")
     return redirect(goal.get_absolute_url())
 
@@ -395,6 +417,7 @@ def task_toggle(request, pk):
     if task.goal.owner_id == request.member.pk:
         task.completed = not task.completed
         task.save(update_fields=["completed"])
+        record_activity(task.goal, request.member, "task_completed" if task.completed else "task_reopened", task=task, detail=task.title)
     return redirect(task.goal.get_absolute_url())
 
 
@@ -407,6 +430,7 @@ def task_delete(request, pk):
     if request.method == "POST":
         form = DeleteConfirmationForm(request.POST)
         if form.is_valid() and form.cleaned_data["name"] == task.title:
+            record_activity(goal, request.member, "task_deleted", f"Deleted task: {task.title}")
             task.delete()
             messages.success(request, "Task deleted.")
             return redirect(goal.get_absolute_url())
@@ -414,6 +438,34 @@ def task_delete(request, pk):
     else:
         form = DeleteConfirmationForm()
     return render(request, "tracker/task_confirm_delete.html", {"task": task, "goal": goal, "form": form})
+
+
+@require_member
+@require_POST
+def goal_comment_create(request, pk):
+    goal = get_object_or_404(Goal, pk=pk)
+    form = GoalCommentForm(request.POST)
+    if form.is_valid():
+        comment = form.save(commit=False)
+        comment.goal = goal
+        comment.author = request.member
+        comment.save()
+        record_activity(goal, request.member, "goal_commented", "Added a comment.")
+    return redirect(goal.get_absolute_url())
+
+
+@require_member
+@require_POST
+def task_comment_create(request, pk):
+    task = get_object_or_404(TodoTask, pk=pk)
+    form = TodoTaskCommentForm(request.POST)
+    if form.is_valid():
+        comment = form.save(commit=False)
+        comment.task = task
+        comment.author = request.member
+        comment.save()
+        record_activity(task.goal, request.member, "task_commented", "Added a comment.", task=task)
+    return redirect(task.goal.get_absolute_url())
 
 
 # ---------------------------------------------------------------------------
