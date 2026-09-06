@@ -38,6 +38,15 @@ class GoalModelTests(TestCase):
         TodoTask.objects.create(goal=goal, title="Remaining", completed=False)
         self.assertEqual(goal.effective_progress, 50)
 
+    def test_task_deadline_labels_overdue_and_remaining_days(self):
+        goal = self.make_goal()
+        overdue = TodoTask.objects.create(goal=goal, title="Late", due_date=days(-2))
+        upcoming = TodoTask.objects.create(goal=goal, title="Soon", due_date=days(3))
+        self.assertTrue(overdue.is_overdue)
+        self.assertEqual(overdue.deadline_label, "Overdue by 2 days")
+        self.assertFalse(upcoming.is_overdue)
+        self.assertEqual(upcoming.deadline_label, "3 days left")
+
     def test_completing_a_goal_sets_full_progress(self):
         goal = self.make_goal(progress_percent=10)
         goal.status = Goal.STATUS_COMPLETED
@@ -164,6 +173,16 @@ class ViewSmokeTests(TestCase):
         self.assertRedirects(response, self.goal.get_absolute_url(), fetch_redirect_response=False)
         task.refresh_from_db()
         self.assertTrue(task.completed)
+
+    def test_owner_can_add_a_task_with_a_deadline(self):
+        self.client.post(reverse("tracker:whoami"), {"action": "switch", "member_id": self.member.pk}, secure=True)
+        response = self.client.post(
+            reverse("tracker:task_create", args=[self.goal.pk]),
+            {"title": "Schedule inspection", "due_date": days(7)},
+            secure=True,
+        )
+        self.assertRedirects(response, self.goal.get_absolute_url(), fetch_redirect_response=False)
+        self.assertEqual(self.goal.tasks.get().due_date, days(7))
 
     def test_reorder_cannot_move_another_members_goal(self):
         other = Member.objects.create(name="Other")

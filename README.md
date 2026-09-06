@@ -18,7 +18,8 @@ GoalBoard        — a shared board (e.g. "2026 Goals")
   just has no `pace_score` and doesn't count toward the leaderboard.
 - A goal can have a flat checklist of `TodoTask` items. When tasks exist,
   progress is their completion percentage; otherwise progress is set directly
-  on the goal (0-100%). Tasks cannot contain goals or other tasks.
+  on the goal (0-100%). A task may have an optional deadline, which shows its
+  remaining days or overdue state. Tasks cannot contain goals or other tasks.
 - `Category` is a small shared taxonomy (name + color), seeded with
   Financial/Health/Career/Personal — manage it at `/categories/`, where
   anyone can add more from a fixed color palette (`CATEGORY_PALETTE` in

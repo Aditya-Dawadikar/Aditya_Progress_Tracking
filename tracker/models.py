@@ -196,6 +196,7 @@ class TodoTask(models.Model):
     goal = models.ForeignKey(Goal, on_delete=models.CASCADE, related_name="tasks")
     title = models.CharField(max_length=200)
     completed = models.BooleanField(default=False)
+    due_date = models.DateField(null=True, blank=True)
     order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -204,3 +205,20 @@ class TodoTask(models.Model):
 
     def __str__(self):
         return self.title
+
+    @property
+    def is_overdue(self):
+        return not self.completed and self.due_date is not None and self.due_date < timezone.localdate()
+
+    @property
+    def deadline_label(self):
+        if not self.due_date:
+            return None
+        days_remaining = (self.due_date - timezone.localdate()).days
+        if self.completed:
+            return f"Due {self.due_date:%b} {self.due_date.day}"
+        if days_remaining < 0:
+            return f"Overdue by {-days_remaining} day{'s' if days_remaining != -1 else ''}"
+        if days_remaining == 0:
+            return "Due today"
+        return f"{days_remaining} day{'s' if days_remaining != 1 else ''} left"

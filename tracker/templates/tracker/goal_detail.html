@@ -44,7 +44,10 @@
   <h2>Tasks</h2>
   {% if request.member and request.member.pk == goal.owner_id %}
     <form method="post" action="{% url 'tracker:task_create' goal.pk %}" class="task-create-form">
-      {% csrf_token %}{{ task_form.title }}<button type="submit" class="btn btn-primary">Add task</button>
+      {% csrf_token %}
+      <div>{{ task_form.title }}</div>
+      <div>{{ task_form.due_date.label_tag }}{{ task_form.due_date }}</div>
+      <button type="submit" class="btn btn-primary">Add task</button>
     </form>
   {% endif %}
   {% if goal.tasks.all %}
@@ -55,6 +58,7 @@
             <form method="post" action="{% url 'tracker:task_toggle' task.pk %}">{% csrf_token %}<button type="submit" class="task-toggle" aria-label="Toggle {{ task.title }}">{% if task.completed %}&#10003;{% endif %}</button></form>
           {% endif %}
           <span>{{ task.title }}</span>
+          {% if task.deadline_label %}<small class="task-deadline{% if task.is_overdue %} task-overdue{% endif %}">{{ task.deadline_label }}</small>{% endif %}
           {% if request.member and request.member.pk == goal.owner_id %}<form method="post" action="{% url 'tracker:task_delete' task.pk %}">{% csrf_token %}<button type="submit" class="task-delete" aria-label="Delete {{ task.title }}">&times;</button></form>{% endif %}
         </li>
       {% endfor %}

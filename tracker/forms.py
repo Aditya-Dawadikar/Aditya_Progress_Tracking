@@ -85,9 +85,13 @@ class BoardFilterForm(forms.Form):
 class TodoTaskForm(forms.ModelForm):
     class Meta:
         model = TodoTask
-        fields = ["title"]
+        fields = ["title", "due_date"]
         widgets = {
             "title": forms.TextInput(attrs={"placeholder": "Add a task"}),
+            "due_date": forms.DateInput(attrs={"type": "date"}),
+        }
+        labels = {
+            "due_date": "Deadline",
         }
 
 
