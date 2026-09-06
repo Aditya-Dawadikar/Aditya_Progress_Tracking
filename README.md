@@ -62,13 +62,16 @@ python -m venv venv
 ./venv/Scripts/python -m pip install -r requirements.txt   # Windows
 # source venv/bin/activate && pip install -r requirements.txt  # macOS/Linux
 
+set MONGO_URL=mongodb://localhost:27017                      # Windows cmd
+# export MONGO_URL=mongodb://localhost:27017                  # macOS/Linux
+# Optional: set MONGO_DB_NAME=goalpost-local
 python manage.py migrate
 python manage.py seed_demo   # optional: a few members/boards/goals to look at
 python manage.py runserver
 ```
 
-No environment variables are required locally — `DEBUG` defaults on and the
-dev `SECRET_KEY` is fine for local use.
+MongoDB is required in every environment. `DEBUG` defaults on and the dev
+`SECRET_KEY` is fine for local use.
 
 ## Deployment (Docker / Railway)
 
@@ -78,8 +81,9 @@ docker run -p 8000:8000 -e SECRET_KEY=... -e DEBUG=False goalpost
 ```
 
 Required env vars once `DEBUG=False`: `SECRET_KEY` (Django refuses to boot
-with the insecure default otherwise). See `.env.example` for the rest
-(`ALLOWED_HOSTS`, `SQLITE_PATH`, `WEB_CONCURRENCY`).
+with the insecure default otherwise). Railway production uses
+`MONGO_PRIVATE_URL`, automatically supplied by its MongoDB service. See
+`.env.example` for the rest (`ALLOWED_HOSTS`, `WEB_CONCURRENCY`).
 
 On Railway specifically, two things bit us during setup and are now handled
 automatically in `config/settings.py` — worth knowing if you fork this:
@@ -94,6 +98,7 @@ automatically in `config/settings.py` — worth knowing if you fork this:
    `tracker/middleware.py` redirects everything to HTTPS *except* that one
    host, so real traffic still gets HTTPS enforcement.
 
-**SQLite persistence:** the container filesystem is ephemeral, so
-`db.sqlite3` resets on every redeploy unless `SQLITE_PATH` points at a
-mounted Railway volume (e.g. `/data/db.sqlite3`).
+**MongoDB persistence:** add a Railway MongoDB service to the same
+environment and make its `MONGO_PRIVATE_URL` available to this application.
+At startup, `entrypoint.sh` runs the Django migrations against MongoDB.
+

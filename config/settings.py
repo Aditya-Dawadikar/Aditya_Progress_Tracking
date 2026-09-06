@@ -117,14 +117,17 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 
 # Database
-# https://docs.djangoproject.com/en/6.1/ref/settings/#databases
+# Railway exposes MongoDB to application services through MONGO_PRIVATE_URL.
+# MONGO_URL provides the equivalent explicit setting for local development.
+_mongo_url = os.environ.get("MONGO_PRIVATE_URL") or os.environ.get("MONGO_URL")
+if not _mongo_url:
+    raise RuntimeError("Set MONGO_PRIVATE_URL (Railway) or MONGO_URL (local) to a MongoDB connection URI.")
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        # Point this at a mounted volume in production (e.g. /data/db.sqlite3)
-        # so the database survives redeploys.
-        'NAME': os.environ.get('SQLITE_PATH', str(BASE_DIR / 'db.sqlite3')),
+    "default": {
+        "ENGINE": "django_mongodb_backend",
+        "NAME": os.environ.get("MONGO_DB_NAME", "goalpost"),
+        "HOST": _mongo_url,
     }
 }
 
