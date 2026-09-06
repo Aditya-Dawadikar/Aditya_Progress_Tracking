@@ -55,14 +55,14 @@ def whoami(request):
     if request.method == "POST":
         if request.POST.get("action") == "switch":
             member = get_object_or_404(Member, pk=request.POST.get("member_id"))
-            request.session["member_id"] = member.pk
+            request.session["member_id"] = str(member.pk)
             messages.success(request, f"You're now {member.name}.")
             return redirect(next_url)
 
         form = MemberForm(request.POST)
         if form.is_valid():
             member = form.save()
-            request.session["member_id"] = member.pk
+            request.session["member_id"] = str(member.pk)
             messages.success(request, f"Welcome, {member.name}.")
             return redirect(next_url)
     else:

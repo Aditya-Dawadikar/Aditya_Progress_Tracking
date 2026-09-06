@@ -134,7 +134,7 @@ class ViewSmokeTests(TestCase):
         response = self.client.post(reverse("tracker:whoami"), {"name": "New Person"}, secure=True)
         self.assertEqual(response.status_code, 302)
         self.assertTrue(Member.objects.filter(name="New Person").exists())
-        self.assertEqual(self.client.session["member_id"], Member.objects.get(name="New Person").pk)
+        self.assertEqual(self.client.session["member_id"], str(Member.objects.get(name="New Person").pk))
 
     def test_reorder_updates_status_and_order(self):
         second = Goal.objects.create(
