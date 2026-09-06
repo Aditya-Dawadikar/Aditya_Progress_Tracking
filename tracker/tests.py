@@ -283,6 +283,14 @@ class GoalImportExportTests(TestCase):
         with self.assertRaises(goal_io.GoalImportError):
             goal_io.import_goals(self.board, {"goals": [{"status": "in_progress"}]}, default_owner=self.member)
 
+    def test_import_ignores_spoofed_owner_and_uses_importer(self):
+        victim = Member.objects.create(name="Victim")
+        data = {"goals": [{"title": "Not really mine", "owner": "Victim", "status": "not_started"}]}
+        goal_io.import_goals(self.board, data, default_owner=self.member)
+        goal = Goal.objects.get(title="Not really mine")
+        self.assertEqual(goal.owner, self.member)
+        self.assertNotEqual(goal.owner, victim)
+
     def test_import_view_end_to_end(self):
         self.client.post(reverse("tracker:whoami"), {"action": "switch", "member_id": self.member.pk}, secure=True)
         export_response = self.client.get(

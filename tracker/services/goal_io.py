@@ -9,7 +9,7 @@ import itertools
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from tracker.models import CATEGORY_PALETTE, Category, Goal, Member
+from tracker.models import CATEGORY_PALETTE, Category, Goal
 
 SCHEMA_VERSION = "1.0"
 VALID_STATUSES = dict(Goal.STATUS_CHOICES)
@@ -100,22 +100,16 @@ def _get_category(name, cache):
     return category
 
 
-def _get_member(name, cache, fallback):
-    if not name:
-        return fallback
-    key = name.strip().lower()
-    if key in cache:
-        return cache[key]
-    member, _ = Member.objects.get_or_create(name__iexact=name.strip(), defaults={"name": name.strip()})
-    cache[key] = member
-    return member
-
-
-def _create_goal(node, board, parent, default_owner, category_cache, member_cache):
+def _create_goal(node, board, parent, default_owner, category_cache):
+    # Every imported goal is owned by whoever is running the import — never
+    # by an `owner` name taken from the file itself. Otherwise anyone could
+    # craft a JSON file naming a real member as "owner" of fabricated goals
+    # and pollute that member's profile/leaderboard score without their
+    # involvement (the same rule goal_create/goal_reorder already enforce).
     goal = Goal(
         board=board,
         parent=parent,
-        owner=_get_member(node.get("owner"), member_cache, default_owner),
+        owner=default_owner,
         title=node["title"].strip(),
         description=node.get("description") or "",
         category=_get_category(node.get("category"), category_cache),
@@ -128,12 +122,13 @@ def _create_goal(node, board, parent, default_owner, category_cache, member_cach
     goal.full_clean(exclude=["board"])
     goal.save()
     for child in node.get("subgoals") or []:
-        _create_goal(child, board, goal, default_owner, category_cache, member_cache)
+        _create_goal(child, board, goal, default_owner, category_cache)
     return goal
 
 
 def import_goals(board, data, default_owner):
-    """Validate then create the goal tree from `data` under `board`.
+    """Validate then create the goal tree from `data` under `board`, all
+    owned by `default_owner` (see _create_goal for why).
 
     Raises GoalImportError with a list of errors and creates nothing if the
     document is invalid. Returns the count of goals created (including
@@ -143,12 +138,12 @@ def import_goals(board, data, default_owner):
     if errors:
         raise GoalImportError(errors)
 
-    category_cache, member_cache = {}, {}
+    category_cache = {}
     created = 0
     with transaction.atomic():
         for node in data["goals"]:
             try:
-                _create_goal(node, board, None, default_owner, category_cache, member_cache)
+                _create_goal(node, board, None, default_owner, category_cache)
             except ValidationError as exc:
                 raise GoalImportError([str(exc)])
             created += 1 + _count_subgoals(node)

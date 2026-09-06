@@ -6,8 +6,10 @@
   Upload a goals JSON file — the same format produced by
   <a href="{% url 'tracker:board_export_json' board.pk %}">Export</a> on any board.
   Goals are created fresh (this never overwrites or deletes existing goals);
-  members and categories named in the file are created automatically if
-  they don't already exist.
+  categories named in the file are created automatically if they don't
+  already exist. Every imported goal is owned by <strong>you</strong>
+  ({{ request.member.name }}) regardless of whose name is in the file — an
+  import can't attach goals to someone else's account.
 </p>
 
 {% if errors %}
