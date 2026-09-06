@@ -7,6 +7,16 @@
   <link rel="stylesheet" href="{% static 'tracker/css/style.css' %}">
 </head>
 <body>
+  {% if messages %}
+    <ul class="toast-stack" aria-live="polite" aria-label="Notifications">
+      {% for message in messages %}
+        <li class="toast toast-{{ message.tags }}" role="status">
+          <span>{{ message }}</span>
+          <button type="button" class="toast-dismiss" aria-label="Dismiss notification">&times;</button>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
   <header class="site-header">
     <input type="checkbox" id="nav-toggle" class="nav-toggle-checkbox" hidden>
     <div class="site-header-row">
@@ -32,18 +42,31 @@
   </header>
   <main>
     <form id="csrf-holder" hidden>{% csrf_token %}</form>
-    {% if messages %}
-      <ul class="messages">
-        {% for message in messages %}
-          <li class="message message-{{ message.tags }}">{{ message }}</li>
-        {% endfor %}
-      </ul>
-    {% endif %}
     {% block content %}{% endblock %}
   </main>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"
           integrity="sha384-BSxuMLxX+FCbTdYec3TbXlnMGEEM2QXTFdtDaveen71o+jswm2J36+xFqp8k4VHM"
           crossorigin="anonymous"></script>
+  <script>
+    document.querySelectorAll(".toast").forEach((toast) => {
+      let timeoutId;
+      const dismiss = () => {
+        toast.classList.add("toast-leaving");
+        window.setTimeout(() => toast.remove(), 180);
+      };
+      const scheduleDismiss = () => {
+        timeoutId = window.setTimeout(dismiss, 5000);
+      };
+      const cancelDismiss = () => window.clearTimeout(timeoutId);
+
+      toast.querySelector(".toast-dismiss").addEventListener("click", dismiss);
+      toast.addEventListener("mouseenter", cancelDismiss);
+      toast.addEventListener("mouseleave", scheduleDismiss);
+      toast.addEventListener("focusin", cancelDismiss);
+      toast.addEventListener("focusout", scheduleDismiss);
+      scheduleDismiss();
+    });
+  </script>
   {% block extra_js %}{% endblock %}
 </body>
 </html>
