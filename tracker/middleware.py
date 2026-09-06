@@ -1,7 +1,45 @@
+import logging
+import time
+import uuid
+
 from django.conf import settings
 from django.http import HttpResponsePermanentRedirect
 
 HEALTHCHECK_HOST = "healthcheck.railway.app"
+logger = logging.getLogger(__name__)
+
+
+class RequestTraceMiddleware:
+    """Emit one safe, correlated trace line for every request."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        request_id = uuid.uuid4().hex[:12]
+        started_at = time.perf_counter()
+        try:
+            response = self.get_response(request)
+        except Exception:
+            logger.exception(
+                "request_trace request_id=%s method=%s path=%s status=500 duration_ms=%d",
+                request_id,
+                request.method,
+                request.path,
+                (time.perf_counter() - started_at) * 1000,
+            )
+            raise
+
+        response["X-Request-ID"] = request_id
+        logger.info(
+            "request_trace request_id=%s method=%s path=%s status=%s duration_ms=%d",
+            request_id,
+            request.method,
+            request.path,
+            response.status_code,
+            (time.perf_counter() - started_at) * 1000,
+        )
+        return response
 
 
 class CurrentMemberMiddleware:

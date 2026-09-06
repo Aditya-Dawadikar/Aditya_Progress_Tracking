@@ -13,16 +13,16 @@ urlpatterns = [
     path("categories/", views.category_list, name="category_list"),
 
     path("boards/new/", views.board_create, name="board_create"),
-    path("boards/<int:pk>/", views.board_detail, name="board_detail"),
-    path("boards/<int:pk>/edit/", views.board_edit, name="board_edit"),
-    path("boards/<int:pk>/delete/", views.board_delete, name="board_delete"),
-    path("boards/<int:pk>/export.json", views.board_export_json, name="board_export_json"),
-    path("boards/<int:pk>/import/", views.board_import_json, name="board_import_json"),
+    path("boards/<str:pk>/", views.board_detail, name="board_detail"),
+    path("boards/<str:pk>/edit/", views.board_edit, name="board_edit"),
+    path("boards/<str:pk>/delete/", views.board_delete, name="board_delete"),
+    path("boards/<str:pk>/export.json", views.board_export_json, name="board_export_json"),
+    path("boards/<str:pk>/import/", views.board_import_json, name="board_import_json"),
 
     path("goals/new/", views.goal_create, name="goal_create"),
-    path("goals/<int:pk>/", views.goal_detail, name="goal_detail"),
-    path("goals/<int:pk>/edit/", views.goal_edit, name="goal_edit"),
-    path("goals/<int:pk>/delete/", views.goal_delete, name="goal_delete"),
+    path("goals/<str:pk>/", views.goal_detail, name="goal_detail"),
+    path("goals/<str:pk>/edit/", views.goal_edit, name="goal_edit"),
+    path("goals/<str:pk>/delete/", views.goal_delete, name="goal_delete"),
 
     path("reorder/", views.goal_reorder, name="goal_reorder"),
 
