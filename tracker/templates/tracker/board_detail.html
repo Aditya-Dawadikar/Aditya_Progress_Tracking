@@ -21,11 +21,11 @@
 <details class="filter-bar" {% if filters_active %}open{% endif %}>
   <summary>Filters{% if filters_active %} <span class="kanban-count">active</span>{% endif %}</summary>
   <form method="get" class="filter-form">
-    {{ filter_form.q.label_tag }} {{ filter_form.q }}
-    {{ filter_form.category.label_tag }} {{ filter_form.category }}
-    {{ filter_form.owner.label_tag }} {{ filter_form.owner }}
-    {{ filter_form.start_after.label_tag }} {{ filter_form.start_after }}
-    {{ filter_form.end_before.label_tag }} {{ filter_form.end_before }}
+    <div class="filter-field">{{ filter_form.q.label_tag }}{{ filter_form.q }}</div>
+    <div class="filter-field">{{ filter_form.category.label_tag }}{{ filter_form.category }}</div>
+    <div class="filter-field">{{ filter_form.owner.label_tag }}{{ filter_form.owner }}</div>
+    <div class="filter-field">{{ filter_form.start_after.label_tag }}{{ filter_form.start_after }}</div>
+    <div class="filter-field">{{ filter_form.end_before.label_tag }}{{ filter_form.end_before }}</div>
     <div class="filter-actions">
       <button type="submit" class="btn btn-primary">Apply</button>
       <a href="{{ board.get_absolute_url }}" class="btn">Clear</a>

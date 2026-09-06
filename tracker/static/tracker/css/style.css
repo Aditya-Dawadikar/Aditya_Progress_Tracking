@@ -278,8 +278,11 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
   gap: 10px;
   margin-top: 12px;
 }
+.filter-field { min-width: 0; }
+.filter-field label { margin-bottom: 4px; }
+.filter-field input, .filter-field select { width: 100%; }
 @media (min-width: 700px) {
-  .filter-form { grid-template-columns: repeat(3, 1fr); align-items: end; }
+  .filter-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .filter-actions { display: flex; gap: 8px; grid-column: 1 / -1; }
 
