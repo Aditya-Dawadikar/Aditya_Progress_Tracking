@@ -3,6 +3,7 @@ from django.db import models
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import slugify
+from django_mongodb_backend.fields import ObjectIdAutoField
 
 # A small, fixed set of swatches offered when creating a category — keeps the
 # palette visually consistent instead of a full color wheel.
@@ -26,6 +27,7 @@ def _clamp(value, low, high):
 class Member(models.Model):
     """A lightweight, password-less identity chosen via the /whoami/ picker."""
 
+    id = ObjectIdAutoField(primary_key=True)
     name = models.CharField(max_length=60, unique=True)
     slug = models.SlugField(unique=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -46,6 +48,7 @@ class Member(models.Model):
 
 
 class Category(models.Model):
+    id = ObjectIdAutoField(primary_key=True)
     name = models.CharField(max_length=50, unique=True)
     color = models.CharField(max_length=7, default=DEFAULT_CATEGORY_COLOR)
     created_by = models.ForeignKey(
@@ -62,6 +65,7 @@ class Category(models.Model):
 
 
 class GoalBoard(models.Model):
+    id = ObjectIdAutoField(primary_key=True)
     name = models.CharField(max_length=120)
     description = models.TextField(blank=True)
     created_by = models.ForeignKey(
@@ -96,6 +100,7 @@ class Goal(models.Model):
     ]
     STATUS_ORDER = [STATUS_NOT_STARTED, STATUS_IN_PROGRESS, STATUS_COMPLETED, STATUS_ABANDONED]
 
+    id = ObjectIdAutoField(primary_key=True)
     board = models.ForeignKey(GoalBoard, on_delete=models.CASCADE, related_name="goals")
     parent = models.ForeignKey(
         "self", on_delete=models.CASCADE, null=True, blank=True, related_name="subgoals"

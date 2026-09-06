@@ -1,5 +1,6 @@
 import django.db.models.deletion
 from django.db import migrations, models
+from django_mongodb_backend.fields import ObjectIdAutoField
 
 
 class Migration(migrations.Migration):
@@ -12,7 +13,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='Category',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', ObjectIdAutoField(primary_key=True, serialize=False)),
                 ('name', models.CharField(max_length=50, unique=True)),
                 ('color', models.CharField(default='#4F7A62', max_length=7)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),

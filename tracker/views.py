@@ -349,8 +349,8 @@ def goal_reorder(request):
                 continue
             for index, raw_id in enumerate(ids):
                 try:
-                    gid = int(raw_id)
-                except (TypeError, ValueError):
+                    gid = Goal._meta.pk.to_python(raw_id)
+                except (TypeError, ValueError, ValidationError):
                     continue
                 if gid not in valid_ids:
                     continue

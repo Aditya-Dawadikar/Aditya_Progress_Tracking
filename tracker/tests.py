@@ -146,8 +146,8 @@ class ViewSmokeTests(TestCase):
             reverse("tracker:goal_reorder"),
             data=json.dumps({
                 "scope": "board",
-                "scope_id": self.board.pk,
-                "columns": {"in_progress": [second.pk, self.goal.pk]},
+                "scope_id": str(self.board.pk),
+                "columns": {"in_progress": [str(second.pk), str(self.goal.pk)]},
             }),
             content_type="application/json",
             secure=True,
@@ -181,8 +181,8 @@ class ViewSmokeTests(TestCase):
             reverse("tracker:goal_reorder"),
             data=json.dumps({
                 "scope": "board",
-                "scope_id": self.board.pk,
-                "columns": {"completed": [others_goal.pk]},
+                "scope_id": str(self.board.pk),
+                "columns": {"completed": [str(others_goal.pk)]},
             }),
             content_type="application/json",
             secure=True,
