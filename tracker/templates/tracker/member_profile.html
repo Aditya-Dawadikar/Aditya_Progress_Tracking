@@ -1,0 +1,26 @@
+{% extends "tracker/base.html" %}
+{% load tracker_extras %}
+{% block title %}{{ member.name }} · Goalpost{% endblock %}
+{% block content %}
+<h1>{{ member.name }}</h1>
+
+{% if goals %}
+  <div class="card-grid">
+    {% for goal in goals %}
+      <a href="{{ goal.get_absolute_url }}" class="board-card goal-profile-card">
+        <div>
+          <h2>{{ goal.title }}</h2>
+          <div class="goal-card-meta">
+            {% if goal.category %}<span class="pill">{{ goal.category }}</span>{% endif %}
+            <span class="status-pill status-{{ goal.status }}">{{ goal.status|status_label }}</span>
+          </div>
+          <p class="hint">on {{ goal.board.name }} &middot; due {{ goal.end_date|date:"M j, Y" }}</p>
+        </div>
+        {% gauge goal.effective_progress expected=goal.time_fraction_percent size="sm" %}
+      </a>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="empty-state">{{ member.name }} hasn't created any goals yet.</p>
+{% endif %}
+{% endblock %}

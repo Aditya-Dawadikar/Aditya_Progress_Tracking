@@ -1,0 +1,28 @@
+{% extends "tracker/base.html" %}
+{% load tracker_extras %}
+{% block title %}Leaderboard · Goalpost{% endblock %}
+{% block content %}
+<h1>Leaderboard</h1>
+<p class="hint">Ranked by how close each person is to their goals relative to how much time they've had — not raw progress. A score of 50 means exactly on schedule; above is ahead, below is behind.</p>
+
+{% if members %}
+  <ol class="leaderboard">
+    {% for member in members %}
+      <li class="leaderboard-row">
+        <span class="leaderboard-rank">{{ forloop.counter }}</span>
+        {% if member.score is not None %}
+          {% gauge member.score size="sm" %}
+        {% else %}
+          <div class="gauge gauge--sm gauge-empty">—</div>
+        {% endif %}
+        <div class="leaderboard-info">
+          <a href="{{ member.get_absolute_url }}" class="leaderboard-name">{{ member.name }}</a>
+          <div class="hint">{{ member.active_goal_count }} active &middot; {{ member.completed_goal_count }} completed</div>
+        </div>
+      </li>
+    {% endfor %}
+  </ol>
+{% else %}
+  <p class="empty-state">No one has any goals yet.</p>
+{% endif %}
+{% endblock %}

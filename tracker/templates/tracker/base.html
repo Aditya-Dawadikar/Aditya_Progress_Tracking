@@ -3,29 +3,40 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}LeetCode Performance Tracker{% endblock %}</title>
+  <title>{% block title %}Goalpost{% endblock %}</title>
   <link rel="stylesheet" href="{% static 'tracker/css/style.css' %}">
 </head>
 <body>
   <header class="site-header">
-    <div class="brand">LeetCode Performance Tracker</div>
+    <div class="site-header-row">
+      <a class="brand" href="{% url 'tracker:boards_list' %}">Goalpost</a>
+      <a class="whoami-chip" href="{% url 'tracker:whoami' %}?next={{ request.path|urlencode }}">
+        {% if request.member %}
+          {{ request.member.name }} <span class="chip-caret">&#9662;</span>
+        {% else %}
+          Pick a name
+        {% endif %}
+      </a>
+    </div>
     <nav>
-      <a href="{% url 'tracker:dashboard' %}">Dashboard</a>
-      <a href="{% url 'tracker:test_plan_list' %}">Test Plans</a>
-      <a href="{% url 'tracker:test_list' %}">Tests</a>
-      <a href="{% url 'tracker:problem_list' %}">Problems</a>
-      <a href="/admin/">Admin</a>
+      <a href="{% url 'tracker:boards_list' %}">Boards</a>
+      <a href="{% url 'tracker:leaderboard' %}">Leaderboard</a>
     </nav>
   </header>
   <main>
+    <form id="csrf-holder" hidden>{% csrf_token %}</form>
     {% if messages %}
       <ul class="messages">
         {% for message in messages %}
-          <li>{{ message }}</li>
+          <li class="message message-{{ message.tags }}">{{ message }}</li>
         {% endfor %}
       </ul>
     {% endif %}
     {% block content %}{% endblock %}
   </main>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"
+          integrity="sha384-BSxuMLxX+FCbTdYec3TbXlnMGEEM2QXTFdtDaveen71o+jswm2J36+xFqp8k4VHM"
+          crossorigin="anonymous"></script>
+  {% block extra_js %}{% endblock %}
 </body>
 </html>

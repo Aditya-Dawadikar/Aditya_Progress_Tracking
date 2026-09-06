@@ -1,64 +1,46 @@
-# LeetCode Performance Tracker
+# Goalpost
 
-A personal Django LMS for measuring algorithmic problem-solving ability over
-time — not "how many problems have I solved," but *how* I solve them: how
-fast I recognize a pattern, whether I can turn recognition into an algorithm,
-how well I construct adversarial test cases, and where my implementations
-actually fail.
-
-The intended loop:
-
-```
-ChatGPT (or you) writes a TestPlan JSON
-        ↓
-Import it into this app
-        ↓
-Take the assessment — click through phases, the app times you
-        ↓
-Review: predicted pattern vs. the plan's answer key, timing breakdown,
-        expected vs. actual failure modes
-        ↓
-Export CSV
-        ↓
-Feed the CSV back to an LLM to plan the next assessment
-```
-
-This app is deliberately *not* a general LeetCode tracker, not a scraper, and
-does not talk to an LLM itself — it's the measurement instrument in the
-middle. See `Instructions.md` / `Instructions2.md` (untracked, local planning
-docs) for the full original spec.
-
-## Tech stack
-
-Django monolith, SQLite, server-rendered templates, vanilla JS for the phase
-timer. No React, no REST API, no Celery/Redis. `Dockerfile` + Railway config
-for deployment; everything also runs with zero config via `manage.py
-runserver`.
+A public, shared goal tracker. Anyone can track financial, health, career,
+or any other kind of goal — with nested subgoals, drag-and-drop Kanban
+boards, and a normalized leaderboard comparing everyone's pace regardless
+of how different their goals or timelines are.
 
 ## Core domain model
 
 ```
-TestPlan            — curriculum: what SHOULD be tested (imported as JSON)
-  └─ TestPlanProblem — one problem in that plan, + hidden evaluator metadata
-       └─ ExpectedFailureMode
-
-Test                 — one actual execution of a plan (or an ad-hoc test)
-  └─ ProblemAttempt   — your attempt at one problem during that test
-       ├─ AttemptEvent      — append-only timeline (PROBLEM_STARTED, ACCEPTED, ...)
-       ├─ GeneratedTestCase — test cases you wrote while solving
-       └─ SubmissionFailure — a failed submission's categorized reason
+GoalBoard        — a shared board (e.g. "2026 Goals")
+  └─ Goal         — title, description, owner, category, start/end date,
+                     status (Not Started / In Progress / Completed / Abandoned)
+       └─ Goal     — a subgoal (same shape, recursive)
 ```
 
-A `ProblemAttempt`'s phase timers (`reading_seconds`, `pseudocode_seconds`,
-`test_design_seconds`, `implementation_seconds`, `debugging_seconds`) are a
-cache; the `AttemptEvent` log is the source of truth and can always
-reconstruct them. Nothing about a finished attempt is ever overwritten in
-place.
+- Every goal has a hard `end_date` it must be achieved by, and (if it's a
+  subgoal) must fall within its parent's date range.
+- A goal with subgoals has no progress of its own — its progress is always
+  the average of its subgoals' progress, recursively. A leaf goal's
+  progress is set directly (0-100%).
+- Goals are reorganized via drag-and-drop between status columns on a
+  board (or, for subgoals, on their parent goal's page) — see
+  `tracker/static/tracker/js/board.js`, backed by SortableJS and a single
+  `/reorder/` endpoint that re-synchronizes an entire board's column state
+  per drop.
+- **Leaderboard scoring** (`tracker/services/scoring.py`): each goal has a
+  `pace_score` (0-100, `Goal.pace_score` in `tracker/models.py`) —
+  `50 + 50 * (progress_fraction - time_elapsed_fraction)`, clamped to
+  0-100. 50 means exactly on schedule; higher is ahead, lower is behind.
+  This normalizes goals of wildly different scope and duration onto the
+  same scale. A member's leaderboard score is the average `pace_score`
+  across their top-level goals.
 
-**Pattern info stays hidden while you're solving.** A `TestPlanProblem`'s
-expected pattern, selection reasoning, and expected failure modes only
-render once that specific `ProblemAttempt` is completed or abandoned — not
-when the rest of the test finishes, and never before.
+## Identity
+
+There's no password-based auth — this is a small, informal, shared tool.
+Visiting `/whoami/` lets you pick an existing name or add a new one; it's
+stored in your session and attributes anything you create. Everything is
+publicly viewable regardless of whether you've picked a name; picking one
+is only required to create, edit, delete, or drag-and-drop reorganize
+goals and boards (and only that goal's/board's owner can edit or delete
+it).
 
 ## Local development
 
@@ -68,90 +50,18 @@ python -m venv venv
 # source venv/bin/activate && pip install -r requirements.txt  # macOS/Linux
 
 python manage.py migrate
-python manage.py seed_patterns
-python manage.py createsuperuser
+python manage.py seed_demo   # optional: a few members/boards/goals to look at
 python manage.py runserver
 ```
 
 No environment variables are required locally — `DEBUG` defaults on and the
 dev `SECRET_KEY` is fine for local use.
 
-## Test Plan JSON format
-
-Imported at `/test-plans/import/`. A working example ships in the repo at
-[`tracker/static/tracker/samples/sample_test_plan.json`](tracker/static/tracker/samples/sample_test_plan.json)
-and is downloadable directly from that page in the UI.
-
-Minimal shape:
-
-```json
-{
-  "schema_version": "1.0",
-  "name": "Weekly Assessment 04",
-  "description": "Mixed-pattern weekly assessment",
-  "target_distribution": { "medium": 8, "hard": 2 },
-  "problems": [
-    {
-      "order": 1,
-      "leetcode_number": 1234,
-      "title": "Example Problem",
-      "url": "https://leetcode.com/problems/example/",
-      "difficulty": "Medium",
-      "novelty": "Never Seen",
-      "evaluation": {
-        "primary_pattern": "Sliding Window",
-        "secondary_patterns": ["Hash Map"],
-        "selection_reason": "Tests variable-size sliding window recognition",
-        "expected_failure_modes": [
-          "Incorrect shrinking condition",
-          "Duplicate handling",
-          "Off-by-one boundary"
-        ]
-      }
-    }
-  ]
-}
-```
-
-Field notes:
-
-- `schema_version` must be `"1.0"` — the importer rejects anything else
-  outright, so the format can change later without silently corrupting old
-  plans.
-- `difficulty` is case-insensitive `"Medium"` / `"Hard"`.
-- `novelty` is one of `Never Seen`, `Seen But Never Solved`, `Solved Long
-  Ago`, `Recently Solved`, `Unknown` (defaults to `Unknown` if omitted or
-  unrecognized — a warning, not a hard error).
-- `evaluation` is the **hidden answer key** — never shown until that
-  problem's attempt is finished. `primary_pattern` / `secondary_patterns`
-  are matched or created against the shared `Pattern` catalog by name.
-- Problems referenced by `leetcode_number` that don't exist in the catalog
-  yet are auto-created; existing ones are reused as-is (their catalog
-  `primary_pattern` is *not* overwritten by the plan's `evaluation`).
-- Validation is fail-closed on structural problems (duplicate
-  `leetcode_number`, invalid `difficulty`, missing `title`/`order`,
-  duplicate `order`, wrong `schema_version`) and warn-only on the
-  medium/hard distribution drifting from `target_distribution` (or 80/20 if
-  that's omitted).
-
-Import is two-stage: validate + import creates a `draft` `TestPlan` you can
-review (with the answer key still hidden), then **Mark Ready** and **Start
-Assessment**, or **Discard** it entirely if it's wrong.
-
-## CSV exports
-
-Six endpoints under `/export/`: `tests.csv`, `problems.csv`, `attempts.csv`,
-`events.csv`, `test-cases.csv`, `failures.csv` — plus a per-test
-`/tests/<id>/export.csv`. `attempts.csv` is the one worth handing to an LLM:
-denormalized, one row per attempt, every timing/pattern/failure/test-case
-metric in one place. `events.csv` is the raw behavioral timeline underneath
-it, in case you want to recompute metrics differently later.
-
 ## Deployment (Docker / Railway)
 
 ```bash
-docker build -t leetcode-tracker .
-docker run -p 8000:8000 -e SECRET_KEY=... -e DEBUG=False leetcode-tracker
+docker build -t goalpost .
+docker run -p 8000:8000 -e SECRET_KEY=... -e DEBUG=False goalpost
 ```
 
 Required env vars once `DEBUG=False`: `SECRET_KEY` (Django refuses to boot

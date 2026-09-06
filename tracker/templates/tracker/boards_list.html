@@ -1,0 +1,25 @@
+{% extends "tracker/base.html" %}
+{% block title %}Boards · Goalpost{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Goal boards</h1>
+  <a href="{% url 'tracker:board_create' %}" class="btn btn-primary">New board</a>
+</div>
+
+{% if boards %}
+  <div class="card-grid">
+    {% for board in boards %}
+      <a href="{{ board.get_absolute_url }}" class="board-card">
+        <h2>{{ board.name }}</h2>
+        {% if board.description %}<p class="board-card-desc">{{ board.description }}</p>{% endif %}
+        <div class="board-card-stats">
+          <span>{{ board.goal_count }} goal{{ board.goal_count|pluralize }}</span>
+          {% if board.avg_progress is not None %}<span>{{ board.avg_progress }}% avg progress</span>{% endif %}
+        </div>
+      </a>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="empty-state">No boards yet. <a href="{% url 'tracker:board_create' %}">Create the first one</a>.</p>
+{% endif %}
+{% endblock %}

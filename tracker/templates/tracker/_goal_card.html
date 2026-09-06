@@ -1,0 +1,16 @@
+{% load tracker_extras %}
+<li class="goal-card" data-id="{{ goal.id }}">
+  <span class="drag-handle" aria-hidden="true">&#8942;&#8942;</span>
+  <div class="goal-card-body">
+    <a href="{{ goal.get_absolute_url }}" class="goal-card-title">{{ goal.title }}</a>
+    <div class="goal-card-meta">
+      {% if goal.category %}<span class="pill">{{ goal.category }}</span>{% endif %}
+      <span class="goal-owner">{{ goal.owner.name }}</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" style="width:{{ goal.effective_progress }}%"></div></div>
+    <div class="goal-card-footer">
+      <span class="due-date{% if goal.is_overdue %} overdue{% endif %}">Due {{ goal.end_date|date:"M j, Y" }}</span>
+      {% if goal.has_subgoals %}<span class="subgoal-count">{{ goal.subgoals.count }} subgoal{{ goal.subgoals.count|pluralize }}</span>{% endif %}
+    </div>
+  </div>
+</li>

@@ -1,0 +1,17 @@
+{% extends "tracker/base.html" %}
+{% block title %}{% if is_new %}New goal{% else %}Edit goal{% endif %} · Goalpost{% endblock %}
+{% block content %}
+<h1>
+  {% if is_new %}
+    {% if parent %}New subgoal of “{{ parent.title }}”{% else %}New goal on “{{ board.name }}”{% endif %}
+  {% else %}
+    Edit “{{ goal.title }}”
+  {% endif %}
+</h1>
+<form method="post" class="panel">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit" class="btn btn-primary">{% if is_new %}Create goal{% else %}Save changes{% endif %}</button>
+  <a href="{% if goal %}{{ goal.get_absolute_url }}{% elif parent %}{{ parent.get_absolute_url }}{% else %}{{ board.get_absolute_url }}{% endif %}" class="btn">Cancel</a>
+</form>
+{% endblock %}

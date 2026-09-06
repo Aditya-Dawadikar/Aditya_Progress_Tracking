@@ -1,0 +1,44 @@
+{% extends "tracker/base.html" %}
+{% load static tracker_extras %}
+{% block title %}{{ goal.title }} · Goalpost{% endblock %}
+{% block content %}
+<p class="breadcrumb">
+  <a href="{{ goal.board.get_absolute_url }}">{{ goal.board.name }}</a>
+  {% if goal.parent %} &rsaquo; <a href="{{ goal.parent.get_absolute_url }}">{{ goal.parent.title }}</a>{% endif %}
+</p>
+
+<div class="goal-detail-header">
+  <div>
+    <h1>{{ goal.title }}</h1>
+    <div class="goal-card-meta">
+      {% if goal.category %}<span class="pill">{{ goal.category }}</span>{% endif %}
+      <span class="status-pill status-{{ goal.status }}">{{ goal.status|status_label }}</span>
+      <span class="goal-owner">Owned by {{ goal.owner.name }}</span>
+    </div>
+    {% if goal.description %}<p>{{ goal.description|linebreaksbr }}</p>{% endif %}
+    <p class="hint">{{ goal.start_date|date:"M j, Y" }} &rarr; {{ goal.end_date|date:"M j, Y" }}
+      {% if goal.is_overdue %}<span class="overdue">· overdue</span>{% endif %}
+    </p>
+  </div>
+  {% gauge goal.effective_progress expected=goal.time_fraction_percent size="lg" label="Progress" %}
+</div>
+
+<div class="page-header-actions">
+  {% if request.member and request.member.pk == goal.owner_id %}
+    <a href="{% url 'tracker:goal_edit' goal.pk %}" class="btn">Edit</a>
+    <a href="{% url 'tracker:goal_delete' goal.pk %}" class="btn btn-danger">Delete</a>
+  {% endif %}
+  <a href="{% url 'tracker:goal_create' %}?parent={{ goal.pk }}" class="btn btn-primary">New subgoal</a>
+</div>
+
+<h2>Subgoals</h2>
+{% if goal.subgoals.all %}
+  {% include "tracker/_kanban.html" %}
+{% else %}
+  <p class="empty-state">No subgoals yet — progress is tracked directly on this goal.</p>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'tracker/js/board.js' %}"></script>
+{% endblock %}

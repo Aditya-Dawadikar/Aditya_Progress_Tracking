@@ -4,6 +4,29 @@ from django.http import HttpResponsePermanentRedirect
 HEALTHCHECK_HOST = "healthcheck.railway.app"
 
 
+class CurrentMemberMiddleware:
+    """Resolves the session's chosen Member (see /whoami/) onto request.member.
+
+    This is the app's whole "auth" model: no passwords, just a name picked
+    from a shared session-backed identity. request.member is None until one
+    is chosen.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        from tracker.models import Member
+
+        request.member = None
+        member_id = request.session.get("member_id")
+        if member_id:
+            request.member = Member.objects.filter(pk=member_id).first()
+            if request.member is None:
+                del request.session["member_id"]
+        return self.get_response(request)
+
+
 class HealthcheckSafeSSLRedirectMiddleware:
     """Equivalent to SecurityMiddleware's SECURE_SSL_REDIRECT, except it
     never redirects Railway's internal healthcheck prober.

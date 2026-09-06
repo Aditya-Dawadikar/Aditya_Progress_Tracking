@@ -1,0 +1,24 @@
+{% extends "tracker/base.html" %}
+{% load static %}
+{% block title %}{{ board.name }} · Goalpost{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ board.name }}</h1>
+    {% if board.description %}<p class="hint">{{ board.description }}</p>{% endif %}
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'tracker:goal_create' %}?board={{ board.pk }}" class="btn btn-primary">New goal</a>
+    {% if request.member and request.member.pk == board.created_by_id %}
+      <a href="{% url 'tracker:board_edit' board.pk %}" class="btn">Edit</a>
+      <a href="{% url 'tracker:board_delete' board.pk %}" class="btn btn-danger">Delete</a>
+    {% endif %}
+  </div>
+</div>
+
+{% include "tracker/_kanban.html" %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'tracker/js/board.js' %}"></script>
+{% endblock %}

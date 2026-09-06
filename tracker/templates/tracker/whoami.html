@@ -1,0 +1,40 @@
+{% extends "tracker/base.html" %}
+{% block title %}Who are you? · Goalpost{% endblock %}
+{% block content %}
+<h1>Who are you?</h1>
+<p class="hint">No password — just pick your name (or add a new one) so your goals and boards are attributed to you. Everyone can already see everything here.</p>
+
+{% if request.member %}
+  <div class="panel">
+    Currently acting as <strong>{{ request.member.name }}</strong>.
+    <a href="{% url 'tracker:whoami_logout' %}?next={{ next }}">Sign out</a>
+  </div>
+{% endif %}
+
+{% if members %}
+<div class="panel">
+  <h2>Existing names</h2>
+  <div class="member-grid">
+    {% for member in members %}
+      <form method="post" class="member-pick">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="switch">
+        <input type="hidden" name="member_id" value="{{ member.pk }}">
+        <input type="hidden" name="next" value="{{ next }}">
+        <button type="submit" class="member-chip{% if request.member.pk == member.pk %} member-chip-active{% endif %}">{{ member.name }}</button>
+      </form>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="panel">
+  <h2>New name</h2>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ next }}">
+    {{ form.as_p }}
+    <button type="submit" class="btn btn-primary">Continue</button>
+  </form>
+</div>
+{% endblock %}

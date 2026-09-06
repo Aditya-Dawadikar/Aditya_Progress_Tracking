@@ -1,0 +1,11 @@
+{% extends "tracker/base.html" %}
+{% block title %}{% if is_new %}New board{% else %}Edit board{% endif %} · Goalpost{% endblock %}
+{% block content %}
+<h1>{% if is_new %}New board{% else %}Edit “{{ board.name }}”{% endif %}</h1>
+<form method="post" class="panel">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit" class="btn btn-primary">{% if is_new %}Create board{% else %}Save changes{% endif %}</button>
+  {% if not is_new %}<a href="{{ board.get_absolute_url }}" class="btn">Cancel</a>{% endif %}
+</form>
+{% endblock %}

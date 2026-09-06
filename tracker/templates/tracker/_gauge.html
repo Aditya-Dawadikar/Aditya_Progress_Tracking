@@ -1,0 +1,17 @@
+{% load static %}
+<div class="gauge gauge--{{ size }}">
+  <svg viewBox="{{ viewbox }}" role="img" aria-label="{{ value }} percent, {{ status_label }}">
+    <path d="{{ track_path }}" class="gauge-track" fill="none" />
+    {% if value_path %}
+      <path d="{{ value_path }}" fill="none" stroke="{{ color }}" class="gauge-value" />
+    {% endif %}
+    {% if marker %}
+      <line x1="{{ marker.x1 }}" y1="{{ marker.y1 }}" x2="{{ marker.x2 }}" y2="{{ marker.y2 }}" class="gauge-marker" />
+    {% endif %}
+    <text x="{{ cx }}" y="{{ number_y }}" class="gauge-number" text-anchor="middle">{{ value }}%</text>
+  </svg>
+  <div class="gauge-caption">
+    <span class="status-dot" style="background:{{ color }}"></span>
+    {% if label %}{{ label }}: {% endif %}{{ status_label }}
+  </div>
+</div>
