@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 
 import os
 from pathlib import Path
+from urllib.parse import urlsplit
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -118,11 +119,13 @@ _mongo_variable = "MONGO_PRIVATE_URL" if os.environ.get("MONGO_PRIVATE_URL") els
 _mongo_url = os.environ.get(_mongo_variable)
 if not _mongo_url:
     raise RuntimeError("Set MONGO_PRIVATE_URL (Railway) or MONGO_URL (local) to a MongoDB connection URI.")
+_mongo_uri_database = urlsplit(_mongo_url).path.lstrip("/")
+_mongo_database_name = os.environ.get("MONGO_DB_NAME") or _mongo_uri_database or "goalpost"
 
 DATABASES = {
     "default": {
         "ENGINE": "django_mongodb_backend",
-        "NAME": os.environ.get("MONGO_DB_NAME", "goalpost"),
+        "NAME": _mongo_database_name,
         "HOST": _mongo_url,
     }
 }

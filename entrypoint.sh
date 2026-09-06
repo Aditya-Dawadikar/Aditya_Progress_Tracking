@@ -9,8 +9,8 @@ from pymongo import MongoClient
 
 source = "MONGO_PRIVATE_URL" if os.environ.get("MONGO_PRIVATE_URL") else "MONGO_URL"
 uri = os.environ.get(source, "")
-database = os.environ.get("MONGO_DB_NAME", "goalpost")
 parts = urlsplit(uri)
+database = os.environ.get("MONGO_DB_NAME") or parts.path.lstrip("/") or "goalpost"
 try:
   port = parts.port or "<default>"
 except ValueError:
@@ -34,12 +34,12 @@ print("+----------------------------------------------------------+")
 
 try:
   client = MongoClient(uri, serverSelectionTimeoutMS=5000)
-  client.admin.command("ping")
+  client[database].list_collection_names()
 except Exception as exc:
-  print(f"MongoDB connection test: FAILED ({type(exc).__name__})", flush=True)
+  print(f"MongoDB database authorization test: FAILED ({type(exc).__name__})", flush=True)
   raise
 else:
-  print("MongoDB connection test: SUCCESS", flush=True)
+  print("MongoDB database authorization test: SUCCESS", flush=True)
 finally:
   if "client" in locals():
     client.close()
