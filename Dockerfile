@@ -12,10 +12,10 @@ COPY . .
 RUN chmod +x entrypoint.sh
 
 # DEBUG=False so this picks whitenoise's hashed/compressed manifest storage
-# (the one actually used in production). Real SECRET_KEY comes from Railway
-# at runtime. MONGO_URL is only needed so settings can load during collection;
-# collectstatic does not open a database connection.
-RUN DEBUG=False SECRET_KEY=build-time-only MONGO_URL=mongodb://localhost:27017 \
+# (the one actually used in production). Real SECRET_KEY/APP_PASSWORD come
+# from Railway at runtime. MONGO_URL is only needed so settings can load
+# during collection; collectstatic does not open a database connection.
+RUN DEBUG=False SECRET_KEY=build-time-only APP_PASSWORD=build-time-only MONGO_URL=mongodb://localhost:27017 \
     python manage.py collectstatic --noinput
 
 EXPOSE 8000
