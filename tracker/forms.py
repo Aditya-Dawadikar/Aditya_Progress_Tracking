@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import CATEGORY_PALETTE, Category, Event, EventComment, Goal, GoalBoard, Member, TodoTask, GoalComment, TodoTaskComment
+from .models import CATEGORY_PALETTE, Category, Event, EventComment, Goal, GoalBoard, Meeting, Member, TodoTask, GoalComment, TodoTaskComment
 
 
 class AppLoginForm(forms.Form):
@@ -170,3 +170,30 @@ class EventCommentForm(forms.ModelForm):
         widgets = {
             "text": forms.Textarea(attrs={"rows": 2, "placeholder": "Add a comment"}),
         }
+
+
+class MeetingForm(forms.ModelForm):
+    when = forms.DateTimeField(
+        input_formats=["%Y-%m-%dT%H:%M"],
+        widget=forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
+    )
+
+    class Meta:
+        model = Meeting
+        fields = ["title", "when", "notes", "participants"]
+        widgets = {
+            "notes": forms.Textarea(attrs={"rows": 4, "placeholder": "Agenda, notes, decisions..."}),
+            "participants": forms.SelectMultiple(attrs={"size": 4}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["participants"].queryset = Member.objects.all()
+
+
+class MeetingFilterForm(forms.Form):
+    q = forms.CharField(required=False, label="Keyword")
+    participant = forms.ModelChoiceField(queryset=Member.objects.all(), required=False)
+    start = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}), label="From")
+    end = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}), label="To")
+    include_past = forms.BooleanField(required=False, label="Include past meetings")

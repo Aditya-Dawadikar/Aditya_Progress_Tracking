@@ -1,5 +1,6 @@
 import hmac
 import json
+from datetime import datetime
 from functools import wraps
 
 from django.conf import settings
@@ -15,8 +16,8 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from .auth import issue_token
-from .forms import AppLoginForm, BoardFilterForm, CategoryForm, DeleteConfirmationForm, EventCommentForm, EventFilterForm, EventForm, GoalBoardForm, GoalCommentForm, GoalForm, GoalImportForm, MemberForm, TodoTaskCommentForm, TodoTaskForm
-from .models import Category, Event, EventComment, Goal, GoalActivity, GoalBoard, GoalComment, Member, TodoTask, TodoTaskComment
+from .forms import AppLoginForm, BoardFilterForm, CategoryForm, DeleteConfirmationForm, EventCommentForm, EventFilterForm, EventForm, GoalBoardForm, GoalCommentForm, GoalForm, GoalImportForm, MeetingFilterForm, MeetingForm, MemberForm, TodoTaskCommentForm, TodoTaskForm
+from .models import Category, Event, EventComment, Goal, GoalActivity, GoalBoard, GoalComment, Meeting, Member, TodoTask, TodoTaskComment
 from .services import goal_io
 from .services.scoring import member_leaderboard
 
@@ -213,6 +214,86 @@ def event_comment_create(request, pk):
         comment.save()
         messages.success(request, "Comment added.")
     return redirect(event.get_absolute_url())
+
+
+# ---------------------------------------------------------------------------
+# Meetings
+# ---------------------------------------------------------------------------
+
+def meetings_list(request):
+    meetings = Meeting.objects.all()
+    filter_form = MeetingFilterForm(request.GET)
+    if filter_form.is_valid():
+        data = filter_form.cleaned_data
+        if not data["include_past"]:
+            meetings = meetings.filter(when__gte=timezone.now())
+        if data["q"]:
+            meetings = meetings.filter(Q(title__icontains=data["q"]) | Q(notes__icontains=data["q"]))
+        if data["participant"]:
+            meetings = meetings.filter(participants=data["participant"])
+        if data["start"]:
+            start_dt = timezone.make_aware(datetime.combine(data["start"], datetime.min.time()))
+            meetings = meetings.filter(when__gte=start_dt)
+        if data["end"]:
+            end_dt = timezone.make_aware(datetime.combine(data["end"], datetime.max.time()))
+            meetings = meetings.filter(when__lte=end_dt)
+    return render(request, "tracker/meetings_list.html", {"meetings": meetings, "filter_form": filter_form})
+
+
+@require_member
+def meeting_create(request):
+    if request.method == "POST":
+        form = MeetingForm(request.POST)
+        if form.is_valid():
+            meeting = form.save(commit=False)
+            meeting.created_by = request.member
+            meeting.save()
+            form.save_m2m()
+            messages.success(request, f"Meeting “{meeting.title}” scheduled.")
+            return redirect(meeting.get_absolute_url())
+    else:
+        form = MeetingForm()
+    return render(request, "tracker/meeting_form.html", {"form": form, "is_new": True})
+
+
+def meeting_detail(request, pk):
+    meeting = get_object_or_404(Meeting, pk=pk)
+    return render(request, "tracker/meeting_detail.html", {"meeting": meeting})
+
+
+@require_member
+def meeting_edit(request, pk):
+    meeting = get_object_or_404(Meeting, pk=pk)
+    if meeting.created_by_id != request.member.pk:
+        messages.error(request, "Only the meeting's creator can edit it.")
+        return redirect(meeting.get_absolute_url())
+    if request.method == "POST":
+        form = MeetingForm(request.POST, instance=meeting)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Meeting updated.")
+            return redirect(meeting.get_absolute_url())
+    else:
+        form = MeetingForm(instance=meeting)
+    return render(request, "tracker/meeting_form.html", {"form": form, "meeting": meeting, "is_new": False})
+
+
+@require_member
+def meeting_delete(request, pk):
+    meeting = get_object_or_404(Meeting, pk=pk)
+    if meeting.created_by_id != request.member.pk:
+        messages.error(request, "Only the meeting's creator can delete it.")
+        return redirect(meeting.get_absolute_url())
+    if request.method == "POST":
+        form = DeleteConfirmationForm(request.POST)
+        if form.is_valid() and form.cleaned_data["name"] == meeting.title:
+            meeting.delete()
+            messages.success(request, "Meeting deleted.")
+            return redirect("tracker:meetings_list")
+        form.add_error("name", "The name does not match this meeting.")
+    else:
+        form = DeleteConfirmationForm()
+    return render(request, "tracker/meeting_confirm_delete.html", {"meeting": meeting, "form": form})
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,23 @@
+{% extends "tracker/base.html" %}
+{% block title %}Meetings · Goalpost{% endblock %}
+{% block content %}
+<div class="page-header"><h1>Meetings</h1>{% if request.member %}<a href="{% url 'tracker:meeting_create' %}" class="btn btn-primary">New meeting</a>{% endif %}</div>
+<details class="filter-bar" open>
+  <summary>Filters</summary>
+  <form method="get" class="filter-form">
+    <div class="filter-field">{{ filter_form.q.label_tag }}{{ filter_form.q }}</div>
+    <div class="filter-field">{{ filter_form.participant.label_tag }}{{ filter_form.participant }}</div>
+    <div class="filter-field">{{ filter_form.start.label_tag }}{{ filter_form.start }}</div>
+    <div class="filter-field">{{ filter_form.end.label_tag }}{{ filter_form.end }}</div>
+    <label class="event-past-toggle">{{ filter_form.include_past }} {{ filter_form.include_past.label }}</label>
+    <div class="filter-actions"><button type="submit" class="btn btn-primary">Apply</button><a href="{% url 'tracker:meetings_list' %}" class="btn">Clear</a></div>
+  </form>
+</details>
+{% if meetings %}
+  <div class="event-list">
+    {% for meeting in meetings %}
+      <a href="{{ meeting.get_absolute_url }}" class="event-row{% if meeting.is_past %} event-past{% endif %}"><time datetime="{{ meeting.when|date:'c' }}">{{ meeting.when|date:"D, M j, Y, P" }}</time><div><h2>{{ meeting.title }}</h2>{% if meeting.notes %}<p>{{ meeting.notes|truncatechars:140 }}</p>{% endif %}{% if meeting.participants.all %}<small>{% for member in meeting.participants.all %}{{ member.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</small>{% else %}<small>No participants</small>{% endif %}</div></a>
+    {% endfor %}
+  </div>
+{% else %}<p class="empty-state">No meetings match these filters.</p>{% endif %}
+{% endblock %}

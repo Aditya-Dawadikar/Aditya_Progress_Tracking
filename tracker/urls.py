@@ -20,6 +20,12 @@ urlpatterns = [
     path("events/<str:pk>/delete/", views.event_delete, name="event_delete"),
     path("events/<str:pk>/comments/", views.event_comment_create, name="event_comment_create"),
 
+    path("meetings/", views.meetings_list, name="meetings_list"),
+    path("meetings/new/", views.meeting_create, name="meeting_create"),
+    path("meetings/<str:pk>/", views.meeting_detail, name="meeting_detail"),
+    path("meetings/<str:pk>/edit/", views.meeting_edit, name="meeting_edit"),
+    path("meetings/<str:pk>/delete/", views.meeting_delete, name="meeting_delete"),
+
     path("boards/new/", views.board_create, name="board_create"),
     path("boards/<str:pk>/", views.board_detail, name="board_detail"),
     path("boards/<str:pk>/settings/", views.board_settings, name="board_settings"),

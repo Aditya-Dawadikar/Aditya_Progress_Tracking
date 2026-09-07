@@ -302,3 +302,29 @@ class EventComment(models.Model):
 
     class Meta:
         ordering = ["created_at", "id"]
+
+
+class Meeting(models.Model):
+    """A scheduled meeting: notes, a date+time, and who's involved."""
+
+    id = ObjectIdAutoField(primary_key=True)
+    title = models.CharField(max_length=200)
+    notes = models.TextField(blank=True)
+    when = models.DateTimeField()
+    created_by = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="meetings_created")
+    participants = models.ManyToManyField(Member, blank=True, related_name="meetings")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["when", "title"]
+
+    def __str__(self):
+        return self.title
+
+    def get_absolute_url(self):
+        return reverse("tracker:meeting_detail", args=[self.pk])
+
+    @property
+    def is_past(self):
+        return self.when < timezone.now()

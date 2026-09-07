@@ -1,0 +1,6 @@
+{% extends "tracker/base.html" %}
+{% block title %}{{ meeting.title }} · Goalpost{% endblock %}
+{% block content %}
+<p class="breadcrumb"><a href="{% url 'tracker:meetings_list' %}">Meetings</a></p>
+<div class="page-header"><div><h1>{{ meeting.title }}</h1><p class="hint">{{ meeting.when|date:"l, M j, Y, P" }}</p>{% if meeting.notes %}<p>{{ meeting.notes|linebreaksbr }}</p>{% endif %}{% if meeting.participants.all %}<p class="hint">Participants: {% for member in meeting.participants.all %}{{ member.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>{% else %}<p class="hint">No participants assigned.</p>{% endif %}</div>{% if request.member and request.member.pk == meeting.created_by_id %}<div class="page-header-actions"><a href="{% url 'tracker:meeting_edit' meeting.pk %}" class="btn">Edit</a><a href="{% url 'tracker:meeting_delete' meeting.pk %}" class="btn btn-danger">Delete</a></div>{% endif %}</div>
+{% endblock %}
