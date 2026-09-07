@@ -1,6 +1,8 @@
+import hmac
 import json
 from functools import wraps
 
+from django.conf import settings
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -12,7 +14,8 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from .forms import BoardFilterForm, CategoryForm, DeleteConfirmationForm, EventCommentForm, EventFilterForm, EventForm, GoalBoardForm, GoalCommentForm, GoalForm, GoalImportForm, MemberForm, TodoTaskCommentForm, TodoTaskForm
+from .auth import issue_token
+from .forms import AppLoginForm, BoardFilterForm, CategoryForm, DeleteConfirmationForm, EventCommentForm, EventFilterForm, EventForm, GoalBoardForm, GoalCommentForm, GoalForm, GoalImportForm, MemberForm, TodoTaskCommentForm, TodoTaskForm
 from .models import Category, Event, EventComment, Goal, GoalActivity, GoalBoard, GoalComment, Member, TodoTask, TodoTaskComment
 from .services import goal_io
 from .services.scoring import member_leaderboard
@@ -49,6 +52,40 @@ def group_by_status(goals):
 
 def record_activity(goal, actor, action, detail="", task=None):
     GoalActivity.objects.create(goal=goal, actor=actor, action=action, detail=detail, task=task)
+
+
+# ---------------------------------------------------------------------------
+# App-wide login (shared password -> JWT cookie). See tracker/auth.py and
+# AppPasswordMiddleware. Separate from whoami/whoami_logout below, which is
+# the password-less per-Member identity picker used once inside the app.
+# ---------------------------------------------------------------------------
+
+def app_login(request):
+    next_url = safe_next_url(request, request.GET.get("next") or request.POST.get("next"))
+    form = AppLoginForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        entered = form.cleaned_data["password"].encode()
+        expected = settings.APP_PASSWORD.encode()
+        if hmac.compare_digest(entered, expected):
+            response = redirect(next_url)
+            response.set_cookie(
+                settings.JWT_COOKIE_NAME,
+                issue_token(),
+                max_age=settings.JWT_MAX_AGE_SECONDS,
+                httponly=True,
+                secure=not settings.DEBUG,
+                samesite="Lax",
+            )
+            return response
+        form.add_error("password", "Incorrect password.")
+
+    return render(request, "tracker/login.html", {"form": form, "next": next_url})
+
+
+def app_logout(request):
+    response = redirect(reverse("tracker:login"))
+    response.delete_cookie(settings.JWT_COOKIE_NAME)
+    return response
 
 
 # ---------------------------------------------------------------------------

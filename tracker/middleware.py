@@ -4,6 +4,10 @@ import uuid
 
 from django.conf import settings
 from django.http import HttpResponsePermanentRedirect
+from django.shortcuts import redirect
+from django.urls import reverse
+
+from .auth import verify_token
 
 HEALTHCHECK_HOST = "healthcheck.railway.app"
 logger = logging.getLogger(__name__)
@@ -40,6 +44,38 @@ class RequestTraceMiddleware:
             (time.perf_counter() - started_at) * 1000,
         )
         return response
+
+
+class AppPasswordMiddleware:
+    """Gates every request behind the shared APP_PASSWORD login.
+
+    Login (tracker:login) issues a JWT and stores it in an httponly cookie;
+    this middleware just verifies that cookie is present and valid. Railway's
+    healthcheck prober hits "/" with no cookies and must keep getting 200s,
+    so it's exempted by host the same way HealthcheckSafeSSLRedirectMiddleware
+    is.
+    """
+
+    EXEMPT_PATHS = {"/login/"}
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if (
+            request.get_host().split(":")[0] == HEALTHCHECK_HOST
+            or request.path in self.EXEMPT_PATHS
+            or request.path.startswith(settings.STATIC_URL)
+        ):
+            return self.get_response(request)
+
+        token = request.COOKIES.get(settings.JWT_COOKIE_NAME)
+        if not verify_token(token):
+            login_url = reverse("tracker:login")
+            if request.path != "/":
+                login_url = f"{login_url}?next={request.path}"
+            return redirect(login_url)
+        return self.get_response(request)
 
 
 class CurrentMemberMiddleware:

@@ -7,6 +7,9 @@ app_name = "tracker"
 urlpatterns = [
     path("", views.boards_list, name="boards_list"),
 
+    path("login/", views.app_login, name="login"),
+    path("logout/", views.app_logout, name="logout"),
+
     path("whoami/", views.whoami, name="whoami"),
     path("whoami/logout/", views.whoami_logout, name="whoami_logout"),
 

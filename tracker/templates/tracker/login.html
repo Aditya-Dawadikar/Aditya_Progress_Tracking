@@ -1,0 +1,32 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign in · Goalpost</title>
+  <link rel="stylesheet" href="{% static 'tracker/css/style.css' %}">
+  <link rel="stylesheet" href="{% static 'tracker/css/login.css' %}">
+</head>
+<body class="login-body">
+  <div class="login-glow login-glow-a"></div>
+  <div class="login-glow login-glow-b"></div>
+
+  <div class="login-card">
+    <div class="login-mark">G</div>
+    <h1 class="login-title">Goalpost</h1>
+    <p class="login-subtitle">Enter the shared password to continue.</p>
+
+    <form class="login-form" method="post">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ next }}">
+      {{ form.password }}
+      {% if form.errors %}
+        <p class="login-error">{{ form.password.errors.0|default:"Incorrect password." }}</p>
+      {% endif %}
+      <button type="submit" class="btn btn-primary">Sign in</button>
+    </form>
+
+    <p class="login-footnote">You'll pick your name once you're in.</p>
+  </div>
+</body>
+</html>

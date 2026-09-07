@@ -1,0 +1,116 @@
+/* Standalone login screen. Reuses the design tokens from style.css but
+   doesn't touch the app chrome (header/nav) since this page renders alone. */
+
+.login-body {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.login-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.35;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.login-glow-a {
+  width: 420px;
+  height: 420px;
+  top: -140px;
+  left: -120px;
+  background: var(--accent);
+}
+
+.login-glow-b {
+  width: 380px;
+  height: 380px;
+  bottom: -160px;
+  right: -100px;
+  background: var(--warn);
+}
+
+.login-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 380px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  padding: 40px 36px 32px;
+  box-shadow: 0 24px 60px rgba(43, 42, 40, 0.14);
+  animation: login-card-in 0.5s ease both;
+}
+
+@keyframes login-card-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.login-mark {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--accent), var(--col-in-progress));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-ink);
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 auto 18px;
+}
+
+.login-title {
+  text-align: center;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+
+.login-subtitle {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 0 0 26px;
+}
+
+.login-form label { display: none; }
+
+.login-form input[type="password"] {
+  width: 100%;
+  font-size: 15px;
+  padding: 12px 14px;
+  box-sizing: border-box;
+}
+
+.login-form .btn-primary {
+  width: 100%;
+  margin-top: 14px;
+  padding: 11px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.login-error {
+  margin: -6px 0 14px;
+  font-size: 13px;
+  color: var(--bad);
+}
+
+.login-footnote {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 22px;
+}

@@ -3,6 +3,17 @@ from django import forms
 from .models import CATEGORY_PALETTE, Category, Event, EventComment, Goal, GoalBoard, Member, TodoTask, GoalComment, TodoTaskComment
 
 
+class AppLoginForm(forms.Form):
+    password = forms.CharField(
+        label="",
+        widget=forms.PasswordInput(attrs={
+            "placeholder": "Password",
+            "autofocus": True,
+            "autocomplete": "current-password",
+        }),
+    )
+
+
 class MemberForm(forms.ModelForm):
     class Meta:
         model = Member

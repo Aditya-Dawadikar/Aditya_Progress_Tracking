@@ -34,6 +34,17 @@ SECRET_KEY = os.environ.get("SECRET_KEY", _INSECURE_DEV_KEY)
 if not DEBUG and SECRET_KEY == _INSECURE_DEV_KEY:
     raise RuntimeError("Set a real SECRET_KEY env var when DEBUG is off.")
 
+# One shared password gates the whole app (see tracker/auth.py + login view).
+# Everyone who knows it still picks their own Member identity afterwards via
+# /whoami/ as before — this only keeps the app off the open internet.
+_INSECURE_DEV_APP_PASSWORD = "changeme"
+APP_PASSWORD = os.environ.get("APP_PASSWORD", _INSECURE_DEV_APP_PASSWORD)
+if not DEBUG and APP_PASSWORD == _INSECURE_DEV_APP_PASSWORD:
+    raise RuntimeError("Set a real APP_PASSWORD env var when DEBUG is off.")
+
+JWT_COOKIE_NAME = "goalpost_auth"
+JWT_MAX_AGE_SECONDS = 60 * 60 * 24 * 30  # 30 days
+
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",") if h.strip()]
 
 # Railway assigns a public domain at runtime; trust it automatically.
@@ -90,6 +101,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    'tracker.middleware.AppPasswordMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'tracker.middleware.CurrentMemberMiddleware',
 ]
