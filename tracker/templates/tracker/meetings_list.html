@@ -9,7 +9,7 @@
     <div class="filter-field">{{ filter_form.participant.label_tag }}{{ filter_form.participant }}</div>
     <div class="filter-field">{{ filter_form.start.label_tag }}{{ filter_form.start }}</div>
     <div class="filter-field">{{ filter_form.end.label_tag }}{{ filter_form.end }}</div>
-    <label class="event-past-toggle">{{ filter_form.include_past }} {{ filter_form.include_past.label }}</label>
+    <label class="event-past-toggle">{{ filter_form.upcoming_only }} {{ filter_form.upcoming_only.label }}</label>
     <div class="filter-actions"><button type="submit" class="btn btn-primary">Apply</button><a href="{% url 'tracker:meetings_list' %}" class="btn">Clear</a></div>
   </form>
 </details>

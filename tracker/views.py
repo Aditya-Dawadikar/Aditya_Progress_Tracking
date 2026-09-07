@@ -225,7 +225,7 @@ def meetings_list(request):
     filter_form = MeetingFilterForm(request.GET)
     if filter_form.is_valid():
         data = filter_form.cleaned_data
-        if not data["include_past"]:
+        if data["upcoming_only"]:
             meetings = meetings.filter(when__gte=timezone.now())
         if data["q"]:
             meetings = meetings.filter(Q(title__icontains=data["q"]) | Q(notes__icontains=data["q"]))

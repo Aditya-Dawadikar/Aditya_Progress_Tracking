@@ -196,4 +196,4 @@ class MeetingFilterForm(forms.Form):
     participant = forms.ModelChoiceField(queryset=Member.objects.all(), required=False)
     start = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}), label="From")
     end = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}), label="To")
-    include_past = forms.BooleanField(required=False, label="Include past meetings")
+    upcoming_only = forms.BooleanField(required=False, label="Upcoming only")
