@@ -551,3 +551,76 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 }
 .member-chip:hover { border-color: var(--accent); }
 .member-chip-active { border-color: var(--accent); color: var(--accent); }
+
+/* ------------------------------------------------------ decision explorer */
+
+main.main-wide { max-width: 1400px; }
+
+.decision-explorer { display: grid; gap: 16px; align-items: start; }
+@media (min-width: 960px) {
+  .decision-explorer { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); }
+  .decision-graph-pane { position: sticky; top: 76px; }
+}
+.decision-graph-pane { margin-bottom: 0; min-width: 0; }
+.decision-graph-head { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; justify-content: space-between; }
+.decision-graph-head h2 { margin: 0; }
+.decision-legend { display: flex; gap: 12px; font-size: 12px; color: var(--text-dim); }
+.decision-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); border: 2px solid var(--accent); }
+.legend-dot-ended { background: var(--panel); border-color: var(--text-dim); }
+
+.decision-timeline { display: flex; align-items: center; gap: 10px; margin: 12px 0 8px; }
+.decision-timeline input[type="range"] { flex: 1; min-width: 80px; accent-color: var(--accent); }
+.decision-timeline output { min-width: 11em; text-align: right; }
+@media (max-width: 600px) {
+  .decision-timeline { flex-wrap: wrap; }
+  .decision-timeline output { min-width: 0; text-align: left; flex-basis: 100%; }
+}
+
+.decision-graph-scroll { overflow: auto; max-height: calc(100vh - 260px); min-height: 120px; border-top: 1px solid var(--panel-border); padding-top: 4px; }
+#decision-graph { display: block; }
+.graph-edge { fill: none; stroke: var(--panel-border); stroke-width: 2; transition: stroke 0.15s, opacity 0.25s; }
+.graph-hit { fill: transparent; }
+.graph-dot { fill: var(--accent); stroke: var(--panel); stroke-width: 2; transition: r 0.15s; }
+.graph-node { cursor: pointer; outline: none; transition: opacity 0.25s; }
+.graph-node.is-ended .graph-dot { fill: var(--panel); stroke: var(--text-dim); }
+.graph-label { font-size: 13px; fill: var(--text); }
+.graph-date { fill: var(--text-dim); font-size: 12px; }
+.graph-node:hover .graph-hit, .graph-node:focus-visible .graph-hit { fill: var(--panel-2); }
+.graph-node.is-selected .graph-hit { fill: var(--panel-2); }
+.graph-node.is-selected .graph-dot { r: 8; }
+.graph-node.is-selected .graph-label { font-weight: 600; }
+.graph-node.is-unmatched { opacity: 0.35; }
+#decision-graph.has-focus .graph-node:not(.is-lit) { opacity: 0.3; }
+.graph-edge.is-lit { stroke: var(--accent); }
+.graph-node.is-future, .graph-edge.is-future { opacity: 0 !important; pointer-events: none; }
+
+.decision-list-pane { min-width: 0; }
+.decision-row.is-lit, .decision-row.is-selected { border-color: var(--accent); }
+
+/* ------------------------------------------------------------------ drawer */
+
+.drawer-backdrop { position: fixed; inset: 0; background: rgba(43, 42, 40, 0.25); z-index: 30; opacity: 0; transition: opacity 0.2s; }
+.drawer-backdrop.is-open { opacity: 1; }
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 31;
+  width: min(480px, 100vw); overflow-y: auto;
+  background: var(--panel); border-left: 1px solid var(--panel-border);
+  box-shadow: -8px 0 24px rgba(43, 42, 40, 0.12);
+  padding: 16px 20px 32px;
+  transform: translateX(100%); visibility: hidden;
+  transition: transform 0.22s ease, visibility 0s linear 0.22s;
+}
+.drawer.is-open { transform: none; visibility: visible; transition: transform 0.22s ease; }
+.drawer:focus { outline: none; }
+.drawer-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.drawer-close { border: 0; background: none; font-size: 26px; line-height: 1; color: var(--text-dim); cursor: pointer; padding: 0 4px; }
+.drawer-close:hover { color: var(--text); }
+.drawer-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 16px; }
+.drawer-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.drawer-section { border-top: 1px solid var(--panel-border); margin-top: 16px; }
+.drawer-children { margin: 0; padding-left: 18px; }
+.drawer-children li { margin: 4px 0; }
+@media (prefers-reduced-motion: reduce) {
+  .drawer, .drawer-backdrop, .graph-node, .graph-edge { transition: none; }
+}

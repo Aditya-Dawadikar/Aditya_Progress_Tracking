@@ -1,8 +1,9 @@
 {% extends "tracker/base.html" %}
 {% block title %}Decisions · Goalpost{% endblock %}
+{% block main_class %}main-wide{% endblock %}
 {% block content %}
 <div class="page-header"><h1>Decisions</h1><a href="{% url 'tracker:decision_create' %}" class="btn btn-primary">New decision</a></div>
-<details class="filter-bar" open>
+<details class="filter-bar"{% if filtered %} open{% endif %}>
   <summary>Filters</summary>
   <form method="get" class="filter-form">
     <div class="filter-field">{{ filter_form.q.label_tag }}{{ filter_form.q }}</div>
@@ -12,11 +13,298 @@
     <div class="filter-actions"><button type="submit" class="btn btn-primary">Apply</button><a href="{% url 'tracker:decisions_list' %}" class="btn">Clear</a></div>
   </form>
 </details>
-{% if decisions %}
-  <div class="event-list">
-    {% for decision in decisions %}
-      <a href="{{ decision.get_absolute_url }}" class="event-row{% if decision.is_ended %} event-past{% endif %}"><time datetime="{{ decision.start_date|date:'Y-m-d' }}">{{ decision.start_date|date:"M j, Y" }}{% if decision.end_date %} – {{ decision.end_date|date:"M j, Y" }}{% endif %}</time><div><h2>{{ decision.title }}</h2>{% if decision.description %}<p>{{ decision.description|truncatechars:140 }}</p>{% endif %}<small>{% if decision.parent %}Follows “{{ decision.parent.title }}”{% else %}Top-level decision{% endif %}{% if decision.is_ended %} · Ended{% endif %}</small></div></a>
-    {% endfor %}
+
+<div class="decision-explorer">
+  <section class="panel decision-graph-pane" aria-labelledby="decision-graph-heading">
+    <div class="decision-graph-head">
+      <h2 id="decision-graph-heading">Decision graph</h2>
+      <div class="decision-legend" aria-hidden="true"><span><i class="legend-dot"></i>Active</span><span><i class="legend-dot legend-dot-ended"></i>Ended</span></div>
+    </div>
+    {% if explorer %}
+      <div class="decision-timeline">
+        <button type="button" class="btn" id="decision-play" aria-label="Replay how the graph grew">▶ Replay</button>
+        <input type="range" id="decision-scrub" min="1" max="{{ explorer|length }}" value="{{ explorer|length }}" aria-label="Show the graph as of this decision">
+        <output id="decision-scrub-label" for="decision-scrub" class="hint"></output>
+      </div>
+      <div class="decision-graph-scroll"><svg id="decision-graph" role="group" aria-label="Decision graph, oldest at the top"></svg></div>
+      {% if filtered %}<p class="hint">Decisions that don't match the filters are faded.</p>{% endif %}
+    {% else %}
+      <p class="empty-state">The graph appears once you record a decision.</p>
+    {% endif %}
+  </section>
+
+  <section class="decision-list-pane" aria-label="Decision list">
+    {% if decisions %}
+      <div class="event-list">
+        {% for decision in decisions %}
+          <a href="{{ decision.get_absolute_url }}" class="event-row decision-row{% if decision.is_ended %} event-past{% endif %}" data-decision-id="{{ decision.pk }}"><time datetime="{{ decision.start_date|date:'Y-m-d' }}">{{ decision.start_date|date:"M j, Y" }}{% if decision.end_date %} – {{ decision.end_date|date:"M j, Y" }}{% endif %}</time><div><h2>{{ decision.title }}</h2>{% if decision.description %}<p>{{ decision.description|truncatechars:140 }}</p>{% endif %}<small>{% if decision.parent %}Follows “{{ decision.parent.title }}”{% else %}Top-level decision{% endif %}{% if decision.is_ended %} · Ended{% endif %}</small></div></a>
+        {% endfor %}
+      </div>
+    {% else %}<p class="empty-state">No decisions match these filters.</p>{% endif %}
+  </section>
+</div>
+
+<div class="drawer-backdrop" id="decision-drawer-backdrop" hidden></div>
+<aside class="drawer" id="decision-drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" aria-hidden="true" tabindex="-1">
+  <div class="drawer-head">
+    <p class="breadcrumb" id="drawer-trail"></p>
+    <button type="button" class="drawer-close" id="drawer-close" aria-label="Close details">&times;</button>
   </div>
-{% else %}<p class="empty-state">No decisions match these filters.</p>{% endif %}
+  <h1 id="drawer-title"></h1>
+  <p class="hint" id="drawer-meta"></p>
+  <div class="drawer-actions" id="drawer-actions"></div>
+  <div id="drawer-body"></div>
+</aside>
+
+{{ explorer|json_script:"decision-data" }}
+{{ matched_ids|json_script:"decision-matched" }}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+  const decisions = JSON.parse(document.getElementById("decision-data").textContent);
+  const matched = new Set(JSON.parse(document.getElementById("decision-matched").textContent));
+  const filtered = {{ filtered|yesno:"true,false" }};
+  const createUrl = "{% url 'tracker:decision_create' %}";
+  const byId = new Map(decisions.map((d, i) => [d.id, Object.assign(d, { row: i, children: [] })]));
+  decisions.forEach((d) => { if (d.parent && byId.has(d.parent)) byId.get(d.parent).children.push(d); else d.parent = null; });
+
+  const fmt = (iso) => new Date(iso + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  const el = (tag, attrs = {}, text) => {
+    const node = document.createElement(tag);
+    Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
+    if (text !== undefined) node.textContent = text;
+    return node;
+  };
+
+  // ------------------------------------------------------------------ layout
+  // Rows are decisions in start-date order (the graph grows downward). Each
+  // decision sits in a lane spanning from its parent's row to its own; the
+  // first follow-up continues its parent's lane, later ones branch into the
+  // lowest lane with a clear row of space around that span (so an unrelated
+  // decision never looks like it continues someone else's line). Top-level
+  // decisions each open a fresh lane.
+  const lanes = [];
+  const fits = (lane, a, b, gap) => lanes[lane].every(([c, d]) => b + gap <= c || d + gap <= a);
+  decisions.forEach((d) => {
+    const parent = d.parent ? byId.get(d.parent) : null;
+    const a = parent ? Math.min(parent.row, d.row) : d.row;
+    const b = parent ? Math.max(parent.row, d.row) : d.row;
+    let lane = -1;
+    if (parent && parent.children[0] === d && fits(parent.lane, a, b, 0)) lane = parent.lane;
+    for (let i = parent ? 0 : lanes.length; lane < 0; i++) {
+      if (i === lanes.length) lanes.push([]);
+      if (fits(i, a, b, 1)) lane = i;
+    }
+    lanes[lane].push([a, b]);
+    d.lane = lane;
+  });
+
+  const ROW = 34, LANE = 22, PAD = 14, R = 6;
+  const svg = document.getElementById("decision-graph");
+  const nodeEls = new Map();
+  const edgeEls = [];
+
+  if (svg) {
+    const SVG = "http://www.w3.org/2000/svg";
+    const s = (tag, attrs = {}) => {
+      const node = document.createElementNS(SVG, tag);
+      Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
+      return node;
+    };
+    const x = (d) => PAD + d.lane * LANE;
+    const y = (d) => PAD + d.row * ROW;
+    const labelX = PAD + Math.max(lanes.length - 1, 0) * LANE + 18;
+    svg.setAttribute("width", "100%");
+    svg.style.minWidth = `${labelX + 300}px`;
+    svg.setAttribute("height", PAD * 2 + (decisions.length - 1) * ROW);
+
+    const edgeLayer = s("g", { class: "graph-edges" });
+    const nodeLayer = s("g");
+    svg.append(edgeLayer, nodeLayer);
+
+    decisions.forEach((d) => {
+      if (!d.parent) return;
+      const p = byId.get(d.parent);
+      const [x1, y1, x2, y2] = [x(p), y(p), x(d), y(d)];
+      const bend = Math.sign(y2 - y1) * Math.min(ROW, Math.abs(y2 - y1));
+      const path = x1 === x2
+        ? `M${x1},${y1} L${x2},${y2}`
+        : `M${x1},${y1} C${x1},${y1 + bend / 2} ${x2},${y1 + bend / 2} ${x2},${y1 + bend} L${x2},${y2}`;
+      const edge = s("path", { d: path, class: "graph-edge" });
+      edge.dataset.from = p.id;
+      edge.dataset.to = d.id;
+      edgeLayer.append(edge);
+      edgeEls.push(edge);
+    });
+
+    decisions.forEach((d) => {
+      const g = s("g", { class: "graph-node" + (d.ended ? " is-ended" : "") + (filtered && !matched.has(d.id) ? " is-unmatched" : ""), tabindex: "0", role: "button" });
+      g.setAttribute("aria-label", `${d.title}, ${fmt(d.start)}${d.ended ? ", ended" : ""}`);
+      const title = s("title");
+      title.textContent = `${d.title}\n${fmt(d.start)} – ${d.end ? fmt(d.end) : "ongoing"}`;
+      // Invisible full-row hit target so the label and dot both respond.
+      g.append(title, s("rect", { class: "graph-hit", x: 0, y: y(d) - ROW / 2, width: "100%", height: ROW }));
+      g.append(s("circle", { class: "graph-dot", cx: x(d), cy: y(d), r: R }));
+      const label = s("text", { x: labelX, y: y(d) + 4, class: "graph-label" });
+      const date = s("tspan", { class: "graph-date" });
+      date.textContent = fmt(d.start) + "  ";
+      const name = s("tspan");
+      name.textContent = d.title.length > 34 ? d.title.slice(0, 33) + "…" : d.title;
+      label.append(date, name);
+      g.append(label);
+      g.addEventListener("click", () => openDrawer(d.id));
+      g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDrawer(d.id); } });
+      g.addEventListener("mouseenter", () => highlight(d.id));
+      g.addEventListener("mouseleave", () => highlight(null));
+      g.addEventListener("focus", () => highlight(d.id));
+      g.addEventListener("blur", () => highlight(null));
+      nodeLayer.append(g);
+      nodeEls.set(d.id, g);
+    });
+  }
+
+  // --------------------------------------------------------- lineage hover
+  const lineage = (id) => {
+    const ids = new Set([id]);
+    for (let n = byId.get(id); n && n.parent && !ids.has(n.parent); n = byId.get(n.parent)) ids.add(n.parent);
+    const stack = [...byId.get(id).children];
+    while (stack.length) { const c = stack.pop(); if (!ids.has(c.id)) { ids.add(c.id); stack.push(...c.children); } }
+    return ids;
+  };
+  const rows = document.querySelectorAll(".decision-row");
+  function highlight(id) {
+    const ids = id ? lineage(id) : null;
+    svg && svg.classList.toggle("has-focus", !!ids);
+    nodeEls.forEach((g, nid) => g.classList.toggle("is-lit", !!ids && ids.has(nid)));
+    edgeEls.forEach((e) => e.classList.toggle("is-lit", !!ids && ids.has(e.dataset.from) && ids.has(e.dataset.to)));
+    rows.forEach((r) => r.classList.toggle("is-lit", r.dataset.decisionId === id));
+  }
+  rows.forEach((row) => {
+    row.addEventListener("mouseenter", () => highlight(row.dataset.decisionId));
+    row.addEventListener("mouseleave", () => highlight(null));
+    row.addEventListener("click", (e) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+      e.preventDefault();
+      openDrawer(row.dataset.decisionId);
+    });
+  });
+
+  // ------------------------------------------------------- growth replay
+  const scrub = document.getElementById("decision-scrub");
+  const scrubLabel = document.getElementById("decision-scrub-label");
+  const playBtn = document.getElementById("decision-play");
+  let timer = null;
+  function showUpTo(count) {
+    decisions.forEach((d) => nodeEls.get(d.id).classList.toggle("is-future", d.row >= count));
+    edgeEls.forEach((e) => e.classList.toggle("is-future", byId.get(e.dataset.to).row >= count || byId.get(e.dataset.from).row >= count));
+    const last = decisions[count - 1];
+    scrubLabel.textContent = count === decisions.length
+      ? `All ${decisions.length} decision${decisions.length === 1 ? "" : "s"}`
+      : `${count} of ${decisions.length}, as of ${fmt(last.start)}`;
+  }
+  function stop() { clearInterval(timer); timer = null; playBtn.textContent = "▶ Replay"; }
+  if (scrub) {
+    scrub.addEventListener("input", () => { stop(); showUpTo(+scrub.value); });
+    playBtn.addEventListener("click", () => {
+      if (timer) return stop();
+      scrub.value = 1;
+      showUpTo(1);
+      playBtn.textContent = "❚❚ Pause";
+      timer = setInterval(() => {
+        if (+scrub.value >= decisions.length) return stop();
+        scrub.value = +scrub.value + 1;
+        showUpTo(+scrub.value);
+      }, 700);
+    });
+    showUpTo(decisions.length);
+  }
+
+  // --------------------------------------------------------------- drawer
+  const drawer = document.getElementById("decision-drawer");
+  const backdrop = document.getElementById("decision-drawer-backdrop");
+  let lastFocus = null;
+
+  function section(heading, text, emptyText) {
+    const wrap = el("section", { class: "drawer-section" });
+    wrap.append(el("h2", {}, heading));
+    wrap.append(text ? el("p", { class: "drawer-text" }, text) : el("p", { class: "hint" }, emptyText));
+    return wrap;
+  }
+  function decisionLink(d) {
+    const a = el("a", { href: d.url }, d.title);
+    a.addEventListener("click", (e) => { e.preventDefault(); openDrawer(d.id); });
+    return a;
+  }
+
+  function openDrawer(id) {
+    const d = byId.get(id);
+    if (!d) return;
+    if (drawer.getAttribute("aria-hidden") === "true") lastFocus = document.activeElement;
+
+    const trail = document.getElementById("drawer-trail");
+    trail.replaceChildren();
+    const chain = [];
+    for (let n = d.parent && byId.get(d.parent); n && chain.length < 50; n = n.parent && byId.get(n.parent)) chain.unshift(n);
+    chain.forEach((n, i) => { if (i) trail.append(" › "); trail.append(decisionLink(n)); });
+    if (!chain.length) trail.textContent = "Top-level decision";
+
+    document.getElementById("drawer-title").textContent = d.title;
+    const meta = document.getElementById("drawer-meta");
+    meta.textContent = `${fmt(d.start)} – ${d.end ? fmt(d.end) : "ongoing"}${d.ended ? " · Ended" : ""} · Recorded by ${d.created_by}`;
+    meta.append(el("br"), el("code", {}, d.id));
+
+    const actions = document.getElementById("drawer-actions");
+    actions.replaceChildren(
+      el("a", { href: d.url, class: "btn" }, "Open page"),
+      el("a", { href: `${createUrl}?parent=${encodeURIComponent(`${d.title} [${d.id}]`)}`, class: "btn" }, "Add follow-up"),
+    );
+    if (d.can_edit) actions.append(el("a", { href: d.edit_url, class: "btn" }, "Edit"), el("a", { href: d.delete_url, class: "btn btn-danger" }, "Delete"));
+
+    const body = document.getElementById("drawer-body");
+    body.replaceChildren(
+      ...(d.description ? [el("p", { class: "drawer-text" }, d.description)] : []),
+      section("Motivation", d.motivation, "No motivation recorded."),
+      section("Reasons to discontinue or roll back", d.rollback_reasons, "None recorded."),
+    );
+    const follow = el("section", { class: "drawer-section" });
+    follow.append(el("h2", {}, "Follow-ups"));
+    if (d.children.length) {
+      const ul = el("ul", { class: "drawer-children" });
+      d.children.forEach((c) => { const li = el("li"); li.append(decisionLink(c), el("span", { class: "hint" }, ` · ${fmt(c.start)}`)); ul.append(li); });
+      follow.append(ul);
+    } else {
+      follow.append(el("p", { class: "hint" }, "No follow-up decisions yet."));
+    }
+    body.append(follow);
+
+    nodeEls.forEach((g, nid) => g.classList.toggle("is-selected", nid === id));
+    rows.forEach((r) => r.classList.toggle("is-selected", r.dataset.decisionId === id));
+    backdrop.hidden = false;
+    drawer.setAttribute("aria-hidden", "false");
+    requestAnimationFrame(() => { drawer.classList.add("is-open"); backdrop.classList.add("is-open"); });
+    drawer.scrollTop = 0;
+    drawer.focus();
+    history.replaceState(null, "", `#${id}`);
+  }
+
+  function closeDrawer() {
+    if (drawer.getAttribute("aria-hidden") === "true") return;
+    drawer.classList.remove("is-open");
+    backdrop.classList.remove("is-open");
+    drawer.setAttribute("aria-hidden", "true");
+    setTimeout(() => { backdrop.hidden = true; }, 220);
+    nodeEls.forEach((g) => g.classList.remove("is-selected"));
+    rows.forEach((r) => r.classList.remove("is-selected"));
+    history.replaceState(null, "", location.pathname + location.search);
+    if (lastFocus) lastFocus.focus();
+  }
+
+  document.getElementById("drawer-close").addEventListener("click", closeDrawer);
+  backdrop.addEventListener("click", closeDrawer);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
+  if (location.hash.length > 1) openDrawer(location.hash.slice(1));
+})();
+</script>
 {% endblock %}

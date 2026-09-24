@@ -324,7 +324,33 @@ def decisions_list(request):
             decisions = decisions.filter(start_date__gte=data["start"])
         if data["end"]:
             decisions = decisions.filter(start_date__lte=data["end"])
-    return render(request, "tracker/decisions_list.html", {"decisions": decisions, "filter_form": filter_form})
+    member_pk = request.member.pk if request.member else None
+    explorer = [
+        {
+            "id": str(d.pk),
+            "parent": str(d.parent_id) if d.parent_id else None,
+            "title": d.title,
+            "description": d.description,
+            "motivation": d.motivation,
+            "rollback_reasons": d.rollback_reasons,
+            "start": d.start_date.isoformat(),
+            "end": d.end_date.isoformat() if d.end_date else None,
+            "ended": d.is_ended,
+            "created_by": d.created_by.name,
+            "can_edit": d.created_by_id == member_pk,
+            "url": d.get_absolute_url(),
+            "edit_url": reverse("tracker:decision_edit", args=[d.pk]),
+            "delete_url": reverse("tracker:decision_delete", args=[d.pk]),
+        }
+        for d in Decision.objects.select_related("created_by").order_by("start_date", "created_at", "id")
+    ]
+    return render(request, "tracker/decisions_list.html", {
+        "decisions": decisions,
+        "filter_form": filter_form,
+        "explorer": explorer,
+        "matched_ids": [str(pk) for pk in decisions.values_list("pk", flat=True)],
+        "filtered": any(request.GET.get(name) for name in filter_form.fields),
+    })
 
 
 @require_member
