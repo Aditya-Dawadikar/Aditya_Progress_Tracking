@@ -1,7 +1,7 @@
 {% extends "tracker/base.html" %}
 {% block title %}Decisions · Goalpost{% endblock %}
 {% block content %}
-<div class="page-header"><h1>Decisions</h1>{% if request.member %}<a href="{% url 'tracker:decision_create' %}" class="btn btn-primary">New decision</a>{% endif %}</div>
+<div class="page-header"><h1>Decisions</h1><a href="{% url 'tracker:decision_create' %}" class="btn btn-primary">New decision</a></div>
 <details class="filter-bar" open>
   <summary>Filters</summary>
   <form method="get" class="filter-form">
