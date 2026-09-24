@@ -315,11 +315,8 @@ def decisions_list(request):
             if ObjectId.is_valid(q):
                 text_match |= Q(pk=ObjectId(q))
             decisions = decisions.filter(text_match)
-        today = timezone.localdate()
-        if data["status"] == "active":
-            decisions = decisions.filter(Q(end_date__isnull=True) | Q(end_date__gt=today))
-        elif data["status"] == "ended":
-            decisions = decisions.filter(end_date__lte=today)
+        if data["status"]:
+            decisions = decisions.filter(status=data["status"])
         if data["start"]:
             decisions = decisions.filter(start_date__gte=data["start"])
         if data["end"]:
@@ -335,7 +332,8 @@ def decisions_list(request):
             "rollback_reasons": d.rollback_reasons,
             "start": d.start_date.isoformat(),
             "end": d.end_date.isoformat() if d.end_date else None,
-            "ended": d.is_ended,
+            "status": d.status,
+            "status_label": d.get_status_display(),
             "created_by": d.created_by.name,
             "can_edit": d.created_by_id == member_pk,
             "url": d.get_absolute_url(),

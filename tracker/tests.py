@@ -141,19 +141,19 @@ class DecisionTests(TestCase):
         self.assertEqual(self.root.descendant_ids(), {self.child.pk, grandchild.pk})
 
     def test_parent_can_be_found_by_title_or_id(self):
-        base = {"title": "Next", "start_date": days(0)}
+        base = {"title": "Next", "status": "ongoing", "start_date": days(0)}
         for ref in ["use mongodb", str(self.root.pk), f"Use MongoDB [{self.root.pk}]"]:
             form = DecisionForm(data={**base, "parent_ref": ref})
             self.assertTrue(form.is_valid(), form.errors)
             self.assertEqual(form.cleaned_data["parent_ref"], self.root)
 
     def test_parent_cannot_create_a_cycle(self):
-        form = DecisionForm(data={"title": "Use MongoDB", "start_date": days(0), "parent_ref": str(self.child.pk)}, instance=self.root)
+        form = DecisionForm(data={"title": "Use MongoDB", "status": "ongoing", "start_date": days(0), "parent_ref": str(self.child.pk)}, instance=self.root)
         self.assertFalse(form.is_valid())
         self.assertIn("parent_ref", form.errors)
 
     def test_end_date_must_follow_start_date(self):
-        form = DecisionForm(data={"title": "X", "start_date": days(0), "end_date": days(-1)})
+        form = DecisionForm(data={"title": "X", "status": "ongoing", "start_date": days(0), "end_date": days(-1)})
         self.assertFalse(form.is_valid())
         self.assertIn("end_date", form.errors)
 
@@ -163,6 +163,15 @@ class DecisionTests(TestCase):
         self.assertEqual(response.status_code, 302)
         grandchild.refresh_from_db()
         self.assertEqual(grandchild.parent, self.root)
+
+    def test_filter_by_status(self):
+        self.child.status = Decision.STATUS_ABANDONED
+        self.child.save()
+        self.assertEqual(self.root.status, Decision.STATUS_ONGOING)
+        response = self.client.get(reverse("tracker:decisions_list") + "?status=abandoned", secure=True)
+        self.assertEqual(list(response.context["decisions"]), [self.child])
+        response = self.client.get(reverse("tracker:decisions_list") + "?status=ongoing", secure=True)
+        self.assertEqual(list(response.context["decisions"]), [self.root])
 
     def test_pages_render(self):
         for url in [

@@ -218,7 +218,7 @@ class DecisionForm(forms.ModelForm):
 
     class Meta:
         model = Decision
-        fields = ["title", "description", "start_date", "end_date", "motivation", "rollback_reasons"]
+        fields = ["title", "status", "description", "start_date", "end_date", "motivation", "rollback_reasons"]
         labels = {"rollback_reasons": "Reasons to discontinue or roll back"}
         widgets = {
             "description": forms.Textarea(attrs={"rows": 4}),
@@ -228,7 +228,7 @@ class DecisionForm(forms.ModelForm):
             "end_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
         }
 
-    field_order = ["title", "parent_ref", "description", "start_date", "end_date", "motivation", "rollback_reasons"]
+    field_order = ["title", "status", "parent_ref", "description", "start_date", "end_date", "motivation", "rollback_reasons"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -265,9 +265,7 @@ class DecisionForm(forms.ModelForm):
 
 
 class DecisionFilterForm(forms.Form):
-    STATUS_CHOICES = [("", "Any"), ("active", "Active"), ("ended", "Ended")]
-
     q = forms.CharField(required=False, label="Keyword or id")
-    status = forms.ChoiceField(choices=STATUS_CHOICES, required=False)
+    status = forms.ChoiceField(choices=[("", "Any")] + Decision.STATUS_CHOICES, required=False)
     start = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}), label="From")
     end = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}), label="To")

@@ -18,7 +18,7 @@
   <section class="panel decision-graph-pane" aria-labelledby="decision-graph-heading">
     <div class="decision-graph-head">
       <h2 id="decision-graph-heading">Decision graph</h2>
-      <div class="decision-legend" aria-hidden="true"><span><i class="legend-dot"></i>Active</span><span><i class="legend-dot legend-dot-ended"></i>Ended</span></div>
+      <div class="decision-legend" aria-hidden="true"><span><i class="legend-dot"></i>Ongoing</span><span><i class="legend-dot legend-dot-completed"></i>Completed</span><span><i class="legend-dot legend-dot-abandoned"></i>Abandoned</span></div>
     </div>
     {% if explorer %}
       <div class="decision-timeline">
@@ -37,7 +37,7 @@
     {% if decisions %}
       <div class="event-list">
         {% for decision in decisions %}
-          <a href="{{ decision.get_absolute_url }}" class="event-row decision-row{% if decision.is_ended %} event-past{% endif %}" data-decision-id="{{ decision.pk }}"><time datetime="{{ decision.start_date|date:'Y-m-d' }}">{{ decision.start_date|date:"M j, Y" }}{% if decision.end_date %} – {{ decision.end_date|date:"M j, Y" }}{% endif %}</time><div><h2>{{ decision.title }}</h2>{% if decision.description %}<p>{{ decision.description|truncatechars:140 }}</p>{% endif %}<small>{% if decision.parent %}Follows “{{ decision.parent.title }}”{% else %}Top-level decision{% endif %}{% if decision.is_ended %} · Ended{% endif %}</small></div></a>
+          <a href="{{ decision.get_absolute_url }}" class="event-row decision-row{% if decision.is_closed %} event-past{% endif %}" data-decision-id="{{ decision.pk }}"><time datetime="{{ decision.start_date|date:'Y-m-d' }}">{{ decision.start_date|date:"M j, Y" }}{% if decision.end_date %} – {{ decision.end_date|date:"M j, Y" }}{% endif %}</time><div><h2>{{ decision.title }} <span class="status-pill status-{{ decision.status }}">{{ decision.get_status_display }}</span></h2>{% if decision.description %}<p>{{ decision.description|truncatechars:140 }}</p>{% endif %}<small>{% if decision.parent %}Follows “{{ decision.parent.title }}”{% else %}Top-level decision{% endif %}</small></div></a>
         {% endfor %}
       </div>
     {% else %}<p class="empty-state">No decisions match these filters.</p>{% endif %}
@@ -140,10 +140,10 @@
     });
 
     decisions.forEach((d) => {
-      const g = s("g", { class: "graph-node" + (d.ended ? " is-ended" : "") + (filtered && !matched.has(d.id) ? " is-unmatched" : ""), tabindex: "0", role: "button" });
-      g.setAttribute("aria-label", `${d.title}, ${fmt(d.start)}${d.ended ? ", ended" : ""}`);
+      const g = s("g", { class: `graph-node status-node-${d.status}` + (filtered && !matched.has(d.id) ? " is-unmatched" : ""), tabindex: "0", role: "button" });
+      g.setAttribute("aria-label", `${d.title}, ${d.status_label}, ${fmt(d.start)}`);
       const title = s("title");
-      title.textContent = `${d.title}\n${fmt(d.start)} – ${d.end ? fmt(d.end) : "ongoing"}`;
+      title.textContent = `${d.title} (${d.status_label})\n${fmt(d.start)} – ${d.end ? fmt(d.end) : "no end date"}`;
       // Invisible full-row hit target so the label and dot both respond.
       g.append(title, s("rect", { class: "graph-hit", x: 0, y: y(d) - ROW / 2, width: "100%", height: ROW }));
       g.append(s("circle", { class: "graph-dot", cx: x(d), cy: y(d), r: R }));
@@ -153,6 +153,12 @@
       const name = s("tspan");
       name.textContent = d.title.length > 34 ? d.title.slice(0, 33) + "…" : d.title;
       label.append(date, name);
+      // Status in words too, so it never rests on dot color alone.
+      if (d.status !== "ongoing") {
+        const status = s("tspan", { class: "graph-date" });
+        status.textContent = `  · ${d.status_label}`;
+        label.append(status);
+      }
       g.append(label);
       g.addEventListener("click", () => openDrawer(d.id));
       g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDrawer(d.id); } });
@@ -250,9 +256,11 @@
     chain.forEach((n, i) => { if (i) trail.append(" › "); trail.append(decisionLink(n)); });
     if (!chain.length) trail.textContent = "Top-level decision";
 
-    document.getElementById("drawer-title").textContent = d.title;
+    const heading = document.getElementById("drawer-title");
+    heading.textContent = `${d.title} `;
+    heading.append(el("span", { class: `status-pill status-${d.status}` }, d.status_label));
     const meta = document.getElementById("drawer-meta");
-    meta.textContent = `${fmt(d.start)} – ${d.end ? fmt(d.end) : "ongoing"}${d.ended ? " · Ended" : ""} · Recorded by ${d.created_by}`;
+    meta.textContent = `${fmt(d.start)} – ${d.end ? fmt(d.end) : "no end date"} · Recorded by ${d.created_by}`;
     meta.append(el("br"), el("code", {}, d.id));
 
     const actions = document.getElementById("drawer-actions");

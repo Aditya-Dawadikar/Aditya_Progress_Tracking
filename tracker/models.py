@@ -334,8 +334,18 @@ class Decision(models.Model):
     """A recorded decision. Decisions chain together via ``parent`` so a later
     decision can be traced back through the ones that led to it."""
 
+    STATUS_ONGOING = "ongoing"
+    STATUS_COMPLETED = "completed"
+    STATUS_ABANDONED = "abandoned"
+    STATUS_CHOICES = [
+        (STATUS_ONGOING, "Ongoing"),
+        (STATUS_COMPLETED, "Completed"),
+        (STATUS_ABANDONED, "Abandoned"),
+    ]
+
     id = ObjectIdAutoField(primary_key=True)
     title = models.CharField(max_length=200)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_ONGOING)
     description = models.TextField(blank=True)
     motivation = models.TextField(blank=True)
     rollback_reasons = models.TextField(blank=True)
@@ -362,8 +372,8 @@ class Decision(models.Model):
             raise ValidationError({"end_date": "End date can't be before the start date."})
 
     @property
-    def is_ended(self):
-        return self.end_date is not None and self.end_date <= timezone.localdate()
+    def is_closed(self):
+        return self.status != self.STATUS_ONGOING
 
     def ancestors(self):
         """Parents from the root down to (but excluding) this decision."""
