@@ -1,0 +1,22 @@
+{% extends "tracker/base.html" %}
+{% block title %}Decisions · Goalpost{% endblock %}
+{% block content %}
+<div class="page-header"><h1>Decisions</h1>{% if request.member %}<a href="{% url 'tracker:decision_create' %}" class="btn btn-primary">New decision</a>{% endif %}</div>
+<details class="filter-bar" open>
+  <summary>Filters</summary>
+  <form method="get" class="filter-form">
+    <div class="filter-field">{{ filter_form.q.label_tag }}{{ filter_form.q }}</div>
+    <div class="filter-field">{{ filter_form.status.label_tag }}{{ filter_form.status }}</div>
+    <div class="filter-field">{{ filter_form.start.label_tag }}{{ filter_form.start }}</div>
+    <div class="filter-field">{{ filter_form.end.label_tag }}{{ filter_form.end }}</div>
+    <div class="filter-actions"><button type="submit" class="btn btn-primary">Apply</button><a href="{% url 'tracker:decisions_list' %}" class="btn">Clear</a></div>
+  </form>
+</details>
+{% if decisions %}
+  <div class="event-list">
+    {% for decision in decisions %}
+      <a href="{{ decision.get_absolute_url }}" class="event-row{% if decision.is_ended %} event-past{% endif %}"><time datetime="{{ decision.start_date|date:'Y-m-d' }}">{{ decision.start_date|date:"M j, Y" }}{% if decision.end_date %} – {{ decision.end_date|date:"M j, Y" }}{% endif %}</time><div><h2>{{ decision.title }}</h2>{% if decision.description %}<p>{{ decision.description|truncatechars:140 }}</p>{% endif %}<small>{% if decision.parent %}Follows “{{ decision.parent.title }}”{% else %}Top-level decision{% endif %}{% if decision.is_ended %} · Ended{% endif %}</small></div></a>
+    {% endfor %}
+  </div>
+{% else %}<p class="empty-state">No decisions match these filters.</p>{% endif %}
+{% endblock %}

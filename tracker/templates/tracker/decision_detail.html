@@ -1,0 +1,12 @@
+{% extends "tracker/base.html" %}
+{% block title %}{{ decision.title }} · Goalpost{% endblock %}
+{% block content %}
+<p class="breadcrumb"><a href="{% url 'tracker:decisions_list' %}">Decisions</a>{% for ancestor in ancestors %} › <a href="{{ ancestor.get_absolute_url }}">{{ ancestor.title }}</a>{% endfor %}</p>
+<div class="page-header"><div><h1>{{ decision.title }}</h1><p class="hint">{{ decision.start_date|date:"M j, Y" }} – {% if decision.end_date %}{{ decision.end_date|date:"M j, Y" }}{% else %}ongoing{% endif %}{% if decision.is_ended %} · Ended{% endif %} · Recorded by {{ decision.created_by.name }} · <code>{{ decision.pk }}</code></p>{% if decision.description %}<p>{{ decision.description|linebreaksbr }}</p>{% endif %}</div>{% if request.member %}<div class="page-header-actions"><a href="{% url 'tracker:decision_create' %}?parent={{ decision.title|urlencode }}%20%5B{{ decision.pk }}%5D" class="btn">Add follow-up</a>{% if request.member.pk == decision.created_by_id %}<a href="{% url 'tracker:decision_edit' decision.pk %}" class="btn">Edit</a><a href="{% url 'tracker:decision_delete' decision.pk %}" class="btn btn-danger">Delete</a>{% endif %}</div>{% endif %}</div>
+<section class="panel"><h2>Motivation</h2>{% if decision.motivation %}<p>{{ decision.motivation|linebreaksbr }}</p>{% else %}<p class="empty-state">No motivation recorded.</p>{% endif %}</section>
+<section class="panel"><h2>Reasons to discontinue or roll back</h2>{% if decision.rollback_reasons %}<p>{{ decision.rollback_reasons|linebreaksbr }}</p>{% else %}<p class="empty-state">None recorded.</p>{% endif %}</section>
+<section class="panel"><h2>Decision chain</h2>
+  <p class="hint">Previous: {% if decision.parent %}<a href="{{ decision.parent.get_absolute_url }}">{{ decision.parent.title }}</a>{% else %}none — this is a top-level decision{% endif %}</p>
+  {% if children %}<p class="hint">Follow-ups:</p><div class="event-list">{% for child in children %}<a href="{{ child.get_absolute_url }}" class="event-row{% if child.is_ended %} event-past{% endif %}"><time datetime="{{ child.start_date|date:'Y-m-d' }}">{{ child.start_date|date:"M j, Y" }}</time><div><h2>{{ child.title }}</h2>{% if child.description %}<p>{{ child.description|truncatechars:140 }}</p>{% endif %}</div></a>{% endfor %}</div>{% else %}<p class="empty-state">No follow-up decisions yet.</p>{% endif %}
+</section>
+{% endblock %}

@@ -26,6 +26,12 @@ urlpatterns = [
     path("meetings/<str:pk>/edit/", views.meeting_edit, name="meeting_edit"),
     path("meetings/<str:pk>/delete/", views.meeting_delete, name="meeting_delete"),
 
+    path("decisions/", views.decisions_list, name="decisions_list"),
+    path("decisions/new/", views.decision_create, name="decision_create"),
+    path("decisions/<str:pk>/", views.decision_detail, name="decision_detail"),
+    path("decisions/<str:pk>/edit/", views.decision_edit, name="decision_edit"),
+    path("decisions/<str:pk>/delete/", views.decision_delete, name="decision_delete"),
+
     path("boards/new/", views.board_create, name="board_create"),
     path("boards/<str:pk>/", views.board_detail, name="board_detail"),
     path("boards/<str:pk>/settings/", views.board_settings, name="board_settings"),

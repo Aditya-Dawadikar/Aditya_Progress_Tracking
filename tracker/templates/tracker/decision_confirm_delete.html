@@ -1,0 +1,3 @@
+{% extends "tracker/base.html" %}
+{% block title %}Delete decision · Goalpost{% endblock %}
+{% block content %}<p class="breadcrumb"><a href="{{ decision.get_absolute_url }}">{{ decision.title }}</a></p><h1>Delete “{{ decision.title }}”?</h1><p class="hint">Any follow-up decisions will be re-linked to this decision's parent.</p><form method="post" class="panel">{% csrf_token %}{{ form.as_p }}<button type="submit" class="btn btn-danger">Delete decision</button><a href="{{ decision.get_absolute_url }}" class="btn">Cancel</a></form>{% endblock %}

@@ -1,6 +1,9 @@
+import re
+
+from bson import ObjectId
 from django import forms
 
-from .models import CATEGORY_PALETTE, Category, Event, EventComment, Goal, GoalBoard, Meeting, Member, TodoTask, GoalComment, TodoTaskComment
+from .models import CATEGORY_PALETTE, Category, Decision, Event, EventComment, Goal, GoalBoard, Meeting, Member, TodoTask, GoalComment, TodoTaskComment
 
 
 class AppLoginForm(forms.Form):
@@ -197,3 +200,74 @@ class MeetingFilterForm(forms.Form):
     start = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}), label="From")
     end = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}), label="To")
     upcoming_only = forms.BooleanField(required=False, label="Upcoming only")
+
+
+def _decision_label(decision):
+    return f"{decision.title} [{decision.pk}]"
+
+
+class DecisionForm(forms.ModelForm):
+    # Typed free text (backed by a <datalist> of "Title [id]" suggestions) so a
+    # parent can be found by searching either its title or its id.
+    parent_ref = forms.CharField(
+        required=False,
+        label="Parent decision",
+        help_text="Search by title or id. Leave blank for a top-level decision.",
+        widget=forms.TextInput(attrs={"list": "decision-options", "autocomplete": "off", "placeholder": "Title or id"}),
+    )
+
+    class Meta:
+        model = Decision
+        fields = ["title", "description", "start_date", "end_date", "motivation", "rollback_reasons"]
+        labels = {"rollback_reasons": "Reasons to discontinue or roll back"}
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 4}),
+            "motivation": forms.Textarea(attrs={"rows": 3, "placeholder": "Why was this decision made?"}),
+            "rollback_reasons": forms.Textarea(attrs={"rows": 3, "placeholder": "What would make us stop or reverse this?"}),
+            "start_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "end_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+        }
+
+    field_order = ["title", "parent_ref", "description", "start_date", "end_date", "motivation", "rollback_reasons"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        excluded = set()
+        if self.instance.pk:
+            excluded = {self.instance.pk} | self.instance.descendant_ids()
+            if self.instance.parent_id and not self.is_bound:
+                self.initial["parent_ref"] = _decision_label(self.instance.parent)
+        self.parent_choices = Decision.objects.exclude(pk__in=excluded).order_by("title")
+
+    def clean_parent_ref(self):
+        ref = self.cleaned_data["parent_ref"].strip()
+        if not ref:
+            return None
+        # Accept "Title [id]" (from the suggestions), a bare id, or a title.
+        match = re.search(r"\[([0-9a-fA-F]{24})\]\s*$", ref)
+        candidate_id = match.group(1) if match else ref
+        if ObjectId.is_valid(candidate_id):
+            found = self.parent_choices.filter(pk=ObjectId(candidate_id)).first()
+            if found:
+                return found
+        matches = list(self.parent_choices.filter(title__iexact=ref)[:2])
+        if not matches:
+            matches = list(self.parent_choices.filter(title__icontains=ref)[:2])
+        if len(matches) == 1:
+            return matches[0]
+        if matches:
+            raise forms.ValidationError("Several decisions match that title — pick one from the suggestions or use its id.")
+        raise forms.ValidationError("No decision matches that title or id (a decision can't be its own ancestor).")
+
+    def save(self, commit=True):
+        self.instance.parent = self.cleaned_data["parent_ref"]
+        return super().save(commit=commit)
+
+
+class DecisionFilterForm(forms.Form):
+    STATUS_CHOICES = [("", "Any"), ("active", "Active"), ("ended", "Ended")]
+
+    q = forms.CharField(required=False, label="Keyword or id")
+    status = forms.ChoiceField(choices=STATUS_CHOICES, required=False)
+    start = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}), label="From")
+    end = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}), label="To")

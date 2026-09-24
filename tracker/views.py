@@ -3,6 +3,7 @@ import json
 from datetime import datetime
 from functools import wraps
 
+from bson import ObjectId
 from django.conf import settings
 from django.contrib import messages
 from django.core.exceptions import ValidationError
@@ -16,8 +17,8 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from .auth import issue_token
-from .forms import AppLoginForm, BoardFilterForm, CategoryForm, DeleteConfirmationForm, EventCommentForm, EventFilterForm, EventForm, GoalBoardForm, GoalCommentForm, GoalForm, GoalImportForm, MeetingFilterForm, MeetingForm, MemberForm, TodoTaskCommentForm, TodoTaskForm
-from .models import Category, Event, EventComment, Goal, GoalActivity, GoalBoard, GoalComment, Meeting, Member, TodoTask, TodoTaskComment
+from .forms import AppLoginForm, BoardFilterForm, CategoryForm, DecisionFilterForm, DecisionForm, DeleteConfirmationForm, EventCommentForm, EventFilterForm, EventForm, GoalBoardForm, GoalCommentForm, GoalForm, GoalImportForm, MeetingFilterForm, MeetingForm, MemberForm, TodoTaskCommentForm, TodoTaskForm
+from .models import Category, Decision, Event, EventComment, Goal, GoalActivity, GoalBoard, GoalComment, Meeting, Member, TodoTask, TodoTaskComment
 from .services import goal_io
 from .services.scoring import member_leaderboard
 
@@ -294,6 +295,97 @@ def meeting_delete(request, pk):
     else:
         form = DeleteConfirmationForm()
     return render(request, "tracker/meeting_confirm_delete.html", {"meeting": meeting, "form": form})
+
+
+# ---------------------------------------------------------------------------
+# Decisions
+# ---------------------------------------------------------------------------
+
+def decisions_list(request):
+    decisions = Decision.objects.select_related("parent")
+    filter_form = DecisionFilterForm(request.GET)
+    if filter_form.is_valid():
+        data = filter_form.cleaned_data
+        if data["q"]:
+            q = data["q"].strip()
+            text_match = (
+                Q(title__icontains=q) | Q(description__icontains=q)
+                | Q(motivation__icontains=q) | Q(rollback_reasons__icontains=q)
+            )
+            if ObjectId.is_valid(q):
+                text_match |= Q(pk=ObjectId(q))
+            decisions = decisions.filter(text_match)
+        today = timezone.localdate()
+        if data["status"] == "active":
+            decisions = decisions.filter(Q(end_date__isnull=True) | Q(end_date__gt=today))
+        elif data["status"] == "ended":
+            decisions = decisions.filter(end_date__lte=today)
+        if data["start"]:
+            decisions = decisions.filter(start_date__gte=data["start"])
+        if data["end"]:
+            decisions = decisions.filter(start_date__lte=data["end"])
+    return render(request, "tracker/decisions_list.html", {"decisions": decisions, "filter_form": filter_form})
+
+
+@require_member
+def decision_create(request):
+    if request.method == "POST":
+        form = DecisionForm(request.POST)
+        if form.is_valid():
+            decision = form.save(commit=False)
+            decision.created_by = request.member
+            decision.save()
+            messages.success(request, f"Decision “{decision.title}” recorded.")
+            return redirect(decision.get_absolute_url())
+    else:
+        form = DecisionForm(initial={"parent_ref": request.GET.get("parent", "")})
+    return render(request, "tracker/decision_form.html", {"form": form, "is_new": True})
+
+
+def decision_detail(request, pk):
+    decision = get_object_or_404(Decision.objects.select_related("parent", "created_by"), pk=pk)
+    return render(request, "tracker/decision_detail.html", {
+        "decision": decision,
+        "ancestors": decision.ancestors(),
+        "children": decision.children.all(),
+    })
+
+
+@require_member
+def decision_edit(request, pk):
+    decision = get_object_or_404(Decision, pk=pk)
+    if decision.created_by_id != request.member.pk:
+        messages.error(request, "Only the decision's creator can edit it.")
+        return redirect(decision.get_absolute_url())
+    if request.method == "POST":
+        form = DecisionForm(request.POST, instance=decision)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Decision updated.")
+            return redirect(decision.get_absolute_url())
+    else:
+        form = DecisionForm(instance=decision)
+    return render(request, "tracker/decision_form.html", {"form": form, "decision": decision, "is_new": False})
+
+
+@require_member
+def decision_delete(request, pk):
+    decision = get_object_or_404(Decision, pk=pk)
+    if decision.created_by_id != request.member.pk:
+        messages.error(request, "Only the decision's creator can delete it.")
+        return redirect(decision.get_absolute_url())
+    if request.method == "POST":
+        form = DeleteConfirmationForm(request.POST)
+        if form.is_valid() and form.cleaned_data["name"] == decision.title:
+            # Re-attach children to this decision's parent so the chain stays linked.
+            decision.children.update(parent=decision.parent)
+            decision.delete()
+            messages.success(request, "Decision deleted.")
+            return redirect("tracker:decisions_list")
+        form.add_error("name", "The name does not match this decision.")
+    else:
+        form = DeleteConfirmationForm()
+    return render(request, "tracker/decision_confirm_delete.html", {"decision": decision, "form": form})
 
 
 # ---------------------------------------------------------------------------

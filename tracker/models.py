@@ -328,3 +328,56 @@ class Meeting(models.Model):
     @property
     def is_past(self):
         return self.when < timezone.now()
+
+
+class Decision(models.Model):
+    """A recorded decision. Decisions chain together via ``parent`` so a later
+    decision can be traced back through the ones that led to it."""
+
+    id = ObjectIdAutoField(primary_key=True)
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    motivation = models.TextField(blank=True)
+    rollback_reasons = models.TextField(blank=True)
+    start_date = models.DateField(default=timezone.localdate)
+    end_date = models.DateField(null=True, blank=True)
+    parent = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="children"
+    )
+    created_by = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="decisions_created")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["start_date", "title"]
+
+    def __str__(self):
+        return self.title
+
+    def get_absolute_url(self):
+        return reverse("tracker:decision_detail", args=[self.pk])
+
+    def clean(self):
+        if self.end_date and self.start_date and self.end_date < self.start_date:
+            raise ValidationError({"end_date": "End date can't be before the start date."})
+
+    @property
+    def is_ended(self):
+        return self.end_date is not None and self.end_date <= timezone.localdate()
+
+    def ancestors(self):
+        """Parents from the root down to (but excluding) this decision."""
+        chain, seen, node = [], {self.pk}, self.parent
+        while node is not None and node.pk not in seen:
+            chain.append(node)
+            seen.add(node.pk)
+            node = node.parent
+        return list(reversed(chain))
+
+    def descendant_ids(self):
+        ids, frontier = set(), [self.pk]
+        while frontier:
+            child_ids = list(Decision.objects.filter(parent_id__in=frontier).values_list("pk", flat=True))
+            frontier = [pk for pk in child_ids if pk not in ids]
+            ids.update(frontier)
+        return ids

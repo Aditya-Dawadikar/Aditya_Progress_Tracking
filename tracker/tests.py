@@ -6,7 +6,8 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Category, Event, EventComment, Goal, GoalActivity, GoalBoard, GoalComment, Member, TodoTask, TodoTaskComment
+from .forms import DecisionForm
+from .models import Category, Decision, Event, EventComment, Goal, GoalActivity, GoalBoard, GoalComment, Member, TodoTask, TodoTaskComment
 from .services import goal_io
 from .services.scoring import member_leaderboard
 
@@ -123,6 +124,56 @@ class EventModelTests(TestCase):
         self.assertFalse(event.is_past)
         self.assertEqual(list(event.participants.all()), [creator, participant])
         self.assertEqual(event.comments.get(), comment)
+
+
+class DecisionTests(TestCase):
+    def setUp(self):
+        self.member = Member.objects.create(name="Alex")
+        self.root = Decision.objects.create(title="Use MongoDB", created_by=self.member)
+        self.child = Decision.objects.create(title="Add indexes", parent=self.root, created_by=self.member)
+        session = self.client.session
+        session["member_id"] = str(self.member.pk)
+        session.save()
+
+    def test_chain_links_parents_and_children(self):
+        grandchild = Decision.objects.create(title="Drop index", parent=self.child, created_by=self.member)
+        self.assertEqual(grandchild.ancestors(), [self.root, self.child])
+        self.assertEqual(self.root.descendant_ids(), {self.child.pk, grandchild.pk})
+
+    def test_parent_can_be_found_by_title_or_id(self):
+        base = {"title": "Next", "start_date": days(0)}
+        for ref in ["use mongodb", str(self.root.pk), f"Use MongoDB [{self.root.pk}]"]:
+            form = DecisionForm(data={**base, "parent_ref": ref})
+            self.assertTrue(form.is_valid(), form.errors)
+            self.assertEqual(form.cleaned_data["parent_ref"], self.root)
+
+    def test_parent_cannot_create_a_cycle(self):
+        form = DecisionForm(data={"title": "Use MongoDB", "start_date": days(0), "parent_ref": str(self.child.pk)}, instance=self.root)
+        self.assertFalse(form.is_valid())
+        self.assertIn("parent_ref", form.errors)
+
+    def test_end_date_must_follow_start_date(self):
+        form = DecisionForm(data={"title": "X", "start_date": days(0), "end_date": days(-1)})
+        self.assertFalse(form.is_valid())
+        self.assertIn("end_date", form.errors)
+
+    def test_deleting_relinks_children_to_grandparent(self):
+        grandchild = Decision.objects.create(title="Drop index", parent=self.child, created_by=self.member)
+        response = self.client.post(reverse("tracker:decision_delete", args=[self.child.pk]), {"name": "Add indexes"}, secure=True)
+        self.assertEqual(response.status_code, 302)
+        grandchild.refresh_from_db()
+        self.assertEqual(grandchild.parent, self.root)
+
+    def test_pages_render(self):
+        for url in [
+            reverse("tracker:decisions_list"),
+            reverse("tracker:decisions_list") + f"?q={self.root.pk}",
+            reverse("tracker:decision_detail", args=[self.child.pk]),
+            reverse("tracker:decision_create"),
+            reverse("tracker:decision_edit", args=[self.root.pk]),
+        ]:
+            response = self.client.get(url, secure=True)
+            self.assertEqual(response.status_code, 200, url)
 
 
 class ViewSmokeTests(TestCase):
