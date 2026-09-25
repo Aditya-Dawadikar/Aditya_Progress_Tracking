@@ -26,7 +26,8 @@ urlpatterns = [
     path("meetings/<str:pk>/edit/", views.meeting_edit, name="meeting_edit"),
     path("meetings/<str:pk>/delete/", views.meeting_delete, name="meeting_delete"),
 
-    path("decisions/", views.decisions_list, name="decisions_list"),
+    path("decisions/", views.decisions_graph, name="decisions_graph"),
+    path("decisions/list/", views.decisions_list, name="decisions_list"),
     path("decisions/new/", views.decision_create, name="decision_create"),
     path("decisions/<str:pk>/", views.decision_detail, name="decision_detail"),
     path("decisions/<str:pk>/edit/", views.decision_edit, name="decision_edit"),

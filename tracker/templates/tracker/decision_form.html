@@ -2,5 +2,5 @@
 {% block title %}{% if is_new %}New decision{% else %}Edit decision{% endif %} · Goalpost{% endblock %}
 {% block content %}
 <h1>{% if is_new %}New decision{% else %}Edit “{{ decision.title }}”{% endif %}</h1>
-<form method="post" class="panel">{% csrf_token %}{{ form.as_p }}<datalist id="decision-options">{% for option in form.parent_choices %}<option value="{{ option.title }} [{{ option.pk }}]">{% endfor %}</datalist><button type="submit" class="btn btn-primary">{% if is_new %}Record decision{% else %}Save changes{% endif %}</button><a href="{% if decision %}{{ decision.get_absolute_url }}{% else %}{% url 'tracker:decisions_list' %}{% endif %}" class="btn">Cancel</a></form>
+<form method="post" class="panel">{% csrf_token %}{{ form.as_p }}<datalist id="decision-options">{% for option in form.parent_choices %}<option value="{{ option.title }} [{{ option.pk }}]">{% endfor %}</datalist><button type="submit" class="btn btn-primary">{% if is_new %}Record decision{% else %}Save changes{% endif %}</button><a href="{% if decision %}{{ decision.get_absolute_url }}{% else %}{% url 'tracker:decisions_graph' %}{% endif %}" class="btn">Cancel</a></form>
 {% endblock %}

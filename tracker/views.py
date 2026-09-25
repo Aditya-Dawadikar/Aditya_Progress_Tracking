@@ -301,6 +301,38 @@ def meeting_delete(request, pk):
 # Decisions
 # ---------------------------------------------------------------------------
 
+def _decision_explorer_data(request):
+    """Every decision as JSON-ready dicts for the graph and the details drawer."""
+    member_pk = request.member.pk if request.member else None
+    return [
+        {
+            "id": str(d.pk),
+            "parent": str(d.parent_id) if d.parent_id else None,
+            "title": d.title,
+            "description": d.description,
+            "motivation": d.motivation,
+            "rollback_reasons": d.rollback_reasons,
+            "start": d.start_date.isoformat(),
+            "end": d.end_date.isoformat() if d.end_date else None,
+            "status": d.status,
+            "status_label": d.get_status_display(),
+            "created_by": d.created_by.name,
+            "can_edit": d.created_by_id == member_pk,
+            "url": d.get_absolute_url(),
+            "edit_url": reverse("tracker:decision_edit", args=[d.pk]),
+            "delete_url": reverse("tracker:decision_delete", args=[d.pk]),
+        }
+        for d in Decision.objects.select_related("created_by").order_by("start_date", "created_at", "id")
+    ]
+
+
+def decisions_graph(request):
+    return render(request, "tracker/decisions_list.html", {
+        "tab": "graph",
+        "explorer": _decision_explorer_data(request),
+    })
+
+
 def decisions_list(request):
     decisions = Decision.objects.select_related("parent")
     filter_form = DecisionFilterForm(request.GET)
@@ -321,33 +353,11 @@ def decisions_list(request):
             decisions = decisions.filter(start_date__gte=data["start"])
         if data["end"]:
             decisions = decisions.filter(start_date__lte=data["end"])
-    member_pk = request.member.pk if request.member else None
-    explorer = [
-        {
-            "id": str(d.pk),
-            "parent": str(d.parent_id) if d.parent_id else None,
-            "title": d.title,
-            "description": d.description,
-            "motivation": d.motivation,
-            "rollback_reasons": d.rollback_reasons,
-            "start": d.start_date.isoformat(),
-            "end": d.end_date.isoformat() if d.end_date else None,
-            "status": d.status,
-            "status_label": d.get_status_display(),
-            "created_by": d.created_by.name,
-            "can_edit": d.created_by_id == member_pk,
-            "url": d.get_absolute_url(),
-            "edit_url": reverse("tracker:decision_edit", args=[d.pk]),
-            "delete_url": reverse("tracker:decision_delete", args=[d.pk]),
-        }
-        for d in Decision.objects.select_related("created_by").order_by("start_date", "created_at", "id")
-    ]
     return render(request, "tracker/decisions_list.html", {
+        "tab": "list",
         "decisions": decisions,
         "filter_form": filter_form,
-        "explorer": explorer,
-        "matched_ids": [str(pk) for pk in decisions.values_list("pk", flat=True)],
-        "filtered": any(request.GET.get(name) for name in filter_form.fields),
+        "explorer": _decision_explorer_data(request),
     })
 
 
@@ -405,7 +415,7 @@ def decision_delete(request, pk):
             decision.children.update(parent=decision.parent)
             decision.delete()
             messages.success(request, "Decision deleted.")
-            return redirect("tracker:decisions_list")
+            return redirect("tracker:decisions_graph")
         form.add_error("name", "The name does not match this decision.")
     else:
         form = DeleteConfirmationForm()

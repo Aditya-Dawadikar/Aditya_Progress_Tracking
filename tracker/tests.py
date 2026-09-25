@@ -175,6 +175,7 @@ class DecisionTests(TestCase):
 
     def test_pages_render(self):
         for url in [
+            reverse("tracker:decisions_graph"),
             reverse("tracker:decisions_list"),
             reverse("tracker:decisions_list") + f"?q={self.root.pk}",
             reverse("tracker:decision_detail", args=[self.child.pk]),

@@ -3,14 +3,18 @@
 {% block main_class %}main-wide{% endblock %}
 {% block content %}
 <div class="page-header"><h1>Decisions</h1><a href="{% url 'tracker:decision_create' %}" class="btn btn-primary">New decision</a></div>
+<nav class="subtabs" aria-label="Decision views">
+  <a href="{% url 'tracker:decisions_graph' %}" class="subtab{% if tab == 'graph' %} is-active{% endif %}"{% if tab == 'graph' %} aria-current="page"{% endif %}>Graph</a>
+  <a href="{% url 'tracker:decisions_list' %}" class="subtab{% if tab == 'list' %} is-active{% endif %}"{% if tab == 'list' %} aria-current="page"{% endif %}>List</a>
+</nav>
 
-<div class="decision-explorer">
-  <section class="panel decision-graph-pane" aria-labelledby="decision-graph-heading">
-    <div class="decision-graph-head">
-      <h2 id="decision-graph-heading">Decision graph</h2>
-      <div class="decision-legend" aria-hidden="true"><span><i class="legend-dot"></i>Ongoing</span><span><i class="legend-dot legend-dot-completed"></i>Completed</span><span><i class="legend-dot legend-dot-abandoned"></i>Abandoned</span></div>
-    </div>
+{% if tab == "graph" %}
+  <section class="panel decision-graph-pane" aria-label="Decision graph">
     {% if explorer %}
+      <div class="decision-graph-head">
+        <p class="hint">Drag to pan, scroll to zoom. Click a node for details.</p>
+        <div class="decision-legend" aria-hidden="true"><span><i class="legend-dot"></i>Ongoing</span><span><i class="legend-dot legend-dot-completed"></i>Completed</span><span><i class="legend-dot legend-dot-abandoned"></i>Abandoned</span></div>
+      </div>
       <div class="graph-canvas" id="graph-canvas">
         <div class="graph-world" id="graph-world"><svg class="graph-edges" id="graph-edges" aria-hidden="true"></svg></div>
         <div class="graph-zoom" role="group" aria-label="Zoom">
@@ -19,32 +23,29 @@
           <button type="button" class="btn" data-zoom="fit">Fit</button>
         </div>
       </div>
-      <p class="hint">Drag to pan, scroll to zoom. Click a node for details.{% if filtered %} Nodes outside the filtered list are faded.{% endif %}</p>
     {% else %}
       <p class="empty-state">The graph appears once you record a decision.</p>
     {% endif %}
   </section>
-
-  <section class="decision-list-pane" aria-label="Decision list">
-    <details class="filter-bar" open>
-      <summary>Filters</summary>
-      <form method="get" class="filter-form">
-        <div class="filter-field">{{ filter_form.q.label_tag }}{{ filter_form.q }}</div>
-        <div class="filter-field">{{ filter_form.status.label_tag }}{{ filter_form.status }}</div>
-        <div class="filter-field">{{ filter_form.start.label_tag }}{{ filter_form.start }}</div>
-        <div class="filter-field">{{ filter_form.end.label_tag }}{{ filter_form.end }}</div>
-        <div class="filter-actions"><button type="submit" class="btn btn-primary">Apply</button><a href="{% url 'tracker:decisions_list' %}" class="btn">Clear</a></div>
-      </form>
-    </details>
-    {% if decisions %}
-      <div class="event-list">
-        {% for decision in decisions %}
-          <a href="{{ decision.get_absolute_url }}" class="event-row decision-row{% if decision.is_closed %} event-past{% endif %}" data-decision-id="{{ decision.pk }}"><time datetime="{{ decision.start_date|date:'Y-m-d' }}">{{ decision.start_date|date:"M j, Y" }}{% if decision.end_date %} – {{ decision.end_date|date:"M j, Y" }}{% endif %}</time><div><h2>{{ decision.title }} <span class="status-pill status-{{ decision.status }}">{{ decision.get_status_display }}</span></h2>{% if decision.description %}<p>{{ decision.description|truncatechars:140 }}</p>{% endif %}<small>{% if decision.parent %}Follows “{{ decision.parent.title }}”{% else %}Top-level decision{% endif %}</small></div></a>
-        {% endfor %}
-      </div>
-    {% else %}<p class="empty-state">No decisions match these filters.</p>{% endif %}
-  </section>
-</div>
+{% else %}
+  <details class="filter-bar" open>
+    <summary>Filters</summary>
+    <form method="get" class="filter-form">
+      <div class="filter-field">{{ filter_form.q.label_tag }}{{ filter_form.q }}</div>
+      <div class="filter-field">{{ filter_form.status.label_tag }}{{ filter_form.status }}</div>
+      <div class="filter-field">{{ filter_form.start.label_tag }}{{ filter_form.start }}</div>
+      <div class="filter-field">{{ filter_form.end.label_tag }}{{ filter_form.end }}</div>
+      <div class="filter-actions"><button type="submit" class="btn btn-primary">Apply</button><a href="{% url 'tracker:decisions_list' %}" class="btn">Clear</a></div>
+    </form>
+  </details>
+  {% if decisions %}
+    <div class="event-list">
+      {% for decision in decisions %}
+        <a href="{{ decision.get_absolute_url }}" class="event-row decision-row{% if decision.is_closed %} event-past{% endif %}" data-decision-id="{{ decision.pk }}"><time datetime="{{ decision.start_date|date:'Y-m-d' }}">{{ decision.start_date|date:"M j, Y" }}{% if decision.end_date %} – {{ decision.end_date|date:"M j, Y" }}{% endif %}</time><div><h2>{{ decision.title }} <span class="status-pill status-{{ decision.status }}">{{ decision.get_status_display }}</span></h2>{% if decision.description %}<p>{{ decision.description|truncatechars:140 }}</p>{% endif %}<small>{% if decision.parent %}Follows “{{ decision.parent.title }}”{% else %}Top-level decision{% endif %}</small></div></a>
+      {% endfor %}
+    </div>
+  {% else %}<p class="empty-state">No decisions match these filters.</p>{% endif %}
+{% endif %}
 
 <div class="drawer-backdrop" id="decision-drawer-backdrop" hidden></div>
 <aside class="drawer" id="decision-drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" aria-hidden="true" tabindex="-1">
@@ -59,15 +60,12 @@
 </aside>
 
 {{ explorer|json_script:"decision-data" }}
-{{ matched_ids|json_script:"decision-matched" }}
 {% endblock %}
 
 {% block extra_js %}
 <script>
 (() => {
   const decisions = JSON.parse(document.getElementById("decision-data").textContent);
-  const matched = new Set(JSON.parse(document.getElementById("decision-matched").textContent));
-  const filtered = {{ filtered|yesno:"true,false" }};
   const createUrl = "{% url 'tracker:decision_create' %}";
   const byId = new Map(decisions.map((d) => [d.id, Object.assign(d, { children: [] })]));
   decisions.forEach((d) => { if (d.parent && byId.has(d.parent)) byId.get(d.parent).children.push(d); else d.parent = null; });
@@ -136,7 +134,7 @@
     decisions.forEach((d) => {
       const node = el("button", {
         type: "button",
-        class: `graph-node status-node-${d.status}${filtered && !matched.has(d.id) ? " is-unmatched" : ""}`,
+        class: `graph-node status-node-${d.status}`,
         style: `left:${d.x}px;top:${d.y}px;width:${NODE_W}px;height:${NODE_H}px`,
         title: d.title,
       });
@@ -214,8 +212,8 @@
       if (mode === "fit") return fit();
       zoomAt(mode === "in" ? 1.2 : 1 / 1.2, canvas.clientWidth / 2, canvas.clientHeight / 2);
     }));
-    fit(0.8);
-    window.addEventListener("resize", () => fit(0.8));
+    fit(0.6);
+    window.addEventListener("resize", () => fit(0.6));
   }
 
   // --------------------------------------------------------- lineage hover
