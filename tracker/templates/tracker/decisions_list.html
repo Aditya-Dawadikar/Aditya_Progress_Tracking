@@ -3,16 +3,6 @@
 {% block main_class %}main-wide{% endblock %}
 {% block content %}
 <div class="page-header"><h1>Decisions</h1><a href="{% url 'tracker:decision_create' %}" class="btn btn-primary">New decision</a></div>
-<details class="filter-bar"{% if filtered %} open{% endif %}>
-  <summary>Filters</summary>
-  <form method="get" class="filter-form">
-    <div class="filter-field">{{ filter_form.q.label_tag }}{{ filter_form.q }}</div>
-    <div class="filter-field">{{ filter_form.status.label_tag }}{{ filter_form.status }}</div>
-    <div class="filter-field">{{ filter_form.start.label_tag }}{{ filter_form.start }}</div>
-    <div class="filter-field">{{ filter_form.end.label_tag }}{{ filter_form.end }}</div>
-    <div class="filter-actions"><button type="submit" class="btn btn-primary">Apply</button><a href="{% url 'tracker:decisions_list' %}" class="btn">Clear</a></div>
-  </form>
-</details>
 
 <div class="decision-explorer">
   <section class="panel decision-graph-pane" aria-labelledby="decision-graph-heading">
@@ -21,14 +11,31 @@
       <div class="decision-legend" aria-hidden="true"><span><i class="legend-dot"></i>Ongoing</span><span><i class="legend-dot legend-dot-completed"></i>Completed</span><span><i class="legend-dot legend-dot-abandoned"></i>Abandoned</span></div>
     </div>
     {% if explorer %}
-      <div class="decision-graph-scroll"><svg id="decision-graph" role="group" aria-label="Decision graph, oldest at the top"></svg></div>
-      {% if filtered %}<p class="hint">Decisions that don't match the filters are faded.</p>{% endif %}
+      <div class="graph-canvas" id="graph-canvas">
+        <div class="graph-world" id="graph-world"><svg class="graph-edges" id="graph-edges" aria-hidden="true"></svg></div>
+        <div class="graph-zoom" role="group" aria-label="Zoom">
+          <button type="button" class="btn" data-zoom="in" aria-label="Zoom in">+</button>
+          <button type="button" class="btn" data-zoom="out" aria-label="Zoom out">−</button>
+          <button type="button" class="btn" data-zoom="fit">Fit</button>
+        </div>
+      </div>
+      <p class="hint">Drag to pan, scroll to zoom. Click a node for details.{% if filtered %} Nodes outside the filtered list are faded.{% endif %}</p>
     {% else %}
       <p class="empty-state">The graph appears once you record a decision.</p>
     {% endif %}
   </section>
 
   <section class="decision-list-pane" aria-label="Decision list">
+    <details class="filter-bar" open>
+      <summary>Filters</summary>
+      <form method="get" class="filter-form">
+        <div class="filter-field">{{ filter_form.q.label_tag }}{{ filter_form.q }}</div>
+        <div class="filter-field">{{ filter_form.status.label_tag }}{{ filter_form.status }}</div>
+        <div class="filter-field">{{ filter_form.start.label_tag }}{{ filter_form.start }}</div>
+        <div class="filter-field">{{ filter_form.end.label_tag }}{{ filter_form.end }}</div>
+        <div class="filter-actions"><button type="submit" class="btn btn-primary">Apply</button><a href="{% url 'tracker:decisions_list' %}" class="btn">Clear</a></div>
+      </form>
+    </details>
     {% if decisions %}
       <div class="event-list">
         {% for decision in decisions %}
@@ -62,7 +69,7 @@
   const matched = new Set(JSON.parse(document.getElementById("decision-matched").textContent));
   const filtered = {{ filtered|yesno:"true,false" }};
   const createUrl = "{% url 'tracker:decision_create' %}";
-  const byId = new Map(decisions.map((d, i) => [d.id, Object.assign(d, { row: i, children: [] })]));
+  const byId = new Map(decisions.map((d) => [d.id, Object.assign(d, { children: [] })]));
   decisions.forEach((d) => { if (d.parent && byId.has(d.parent)) byId.get(d.parent).children.push(d); else d.parent = null; });
 
   const fmt = (iso) => new Date(iso + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
@@ -74,96 +81,141 @@
   };
 
   // ------------------------------------------------------------------ layout
-  // Rows are decisions in start-date order (the graph grows downward). Each
-  // decision sits in a lane spanning from its parent's row to its own; the
-  // first follow-up continues its parent's lane, later ones branch into the
-  // lowest lane with a clear row of space around that span (so an unrelated
-  // decision never looks like it continues someone else's line). Top-level
-  // decisions each open a fresh lane.
-  const lanes = [];
-  const fits = (lane, a, b, gap) => lanes[lane].every(([c, d]) => b + gap <= c || d + gap <= a);
-  decisions.forEach((d) => {
-    const parent = d.parent ? byId.get(d.parent) : null;
-    const a = parent ? Math.min(parent.row, d.row) : d.row;
-    const b = parent ? Math.max(parent.row, d.row) : d.row;
-    let lane = -1;
-    if (parent && parent.children[0] === d && fits(parent.lane, a, b, 0)) lane = parent.lane;
-    for (let i = parent ? 0 : lanes.length; lane < 0; i++) {
-      if (i === lanes.length) lanes.push([]);
-      if (fits(i, a, b, 1)) lane = i;
+  // Left-to-right tree: each top-level decision roots a tree, follow-ups sit
+  // one column to the right of their parent in start-date order, leaves take
+  // consecutive slots down the page and every parent is centred beside its
+  // children. Trees stack top to bottom, oldest first.
+  const NODE_W = 184, NODE_H = 72, GAP_X = 48, GAP_Y = 14;
+  let nextY = 0, maxDepth = 0;
+  const placed = new Set();
+  function place(d, depth) {
+    placed.add(d.id);
+    d.depth = depth;
+    maxDepth = Math.max(maxDepth, depth);
+    const kids = d.children.filter((c) => !placed.has(c.id));
+    kids.forEach((c) => place(c, depth + 1));
+    if (kids.length) {
+      d.y = (kids[0].y + kids[kids.length - 1].y) / 2;
+    } else {
+      d.y = nextY;
+      nextY += NODE_H + GAP_Y;
     }
-    lanes[lane].push([a, b]);
-    d.lane = lane;
-  });
+    d.x = depth * (NODE_W + GAP_X);
+  }
+  decisions.filter((d) => !d.parent).forEach((root) => { place(root, 0); nextY += GAP_Y * 2; });
+  decisions.filter((d) => !placed.has(d.id)).forEach((d) => place(d, 0)); // guards against a corrupt cycle
 
-  const ROW = 34, LANE = 22, PAD = 14, R = 6;
-  const svg = document.getElementById("decision-graph");
+  const canvas = document.getElementById("graph-canvas");
+  const world = document.getElementById("graph-world");
+  const edgesSvg = document.getElementById("graph-edges");
   const nodeEls = new Map();
   const edgeEls = [];
 
-  if (svg) {
-    const SVG = "http://www.w3.org/2000/svg";
-    const s = (tag, attrs = {}) => {
-      const node = document.createElementNS(SVG, tag);
-      Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
-      return node;
-    };
-    const x = (d) => PAD + d.lane * LANE;
-    const y = (d) => PAD + d.row * ROW;
-    const labelX = PAD + Math.max(lanes.length - 1, 0) * LANE + 18;
-    svg.setAttribute("width", "100%");
-    svg.style.minWidth = `${labelX + 300}px`;
-    svg.setAttribute("height", PAD * 2 + (decisions.length - 1) * ROW);
-
-    const edgeLayer = s("g", { class: "graph-edges" });
-    const nodeLayer = s("g");
-    svg.append(edgeLayer, nodeLayer);
+  if (canvas) {
+    const worldW = (maxDepth + 1) * NODE_W + maxDepth * GAP_X;
+    const worldH = Math.max(nextY - GAP_Y * 3, NODE_H);
+    world.style.width = `${worldW}px`;
+    world.style.height = `${worldH}px`;
+    edgesSvg.setAttribute("width", worldW);
+    edgesSvg.setAttribute("height", worldH);
 
     decisions.forEach((d) => {
       if (!d.parent) return;
       const p = byId.get(d.parent);
-      const [x1, y1, x2, y2] = [x(p), y(p), x(d), y(d)];
-      const bend = Math.sign(y2 - y1) * Math.min(ROW, Math.abs(y2 - y1));
-      const path = x1 === x2
-        ? `M${x1},${y1} L${x2},${y2}`
-        : `M${x1},${y1} C${x1},${y1 + bend / 2} ${x2},${y1 + bend / 2} ${x2},${y1 + bend} L${x2},${y2}`;
-      const edge = s("path", { d: path, class: "graph-edge" });
+      const x1 = p.x + NODE_W, y1 = p.y + NODE_H / 2, x2 = d.x, y2 = d.y + NODE_H / 2;
+      const mid = (x1 + x2) / 2;
+      const edge = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      edge.setAttribute("d", `M${x1},${y1} C${mid},${y1} ${mid},${y2} ${x2},${y2}`);
+      edge.setAttribute("class", "graph-edge");
       edge.dataset.from = p.id;
       edge.dataset.to = d.id;
-      edgeLayer.append(edge);
+      edgesSvg.append(edge);
       edgeEls.push(edge);
     });
 
     decisions.forEach((d) => {
-      const g = s("g", { class: `graph-node status-node-${d.status}` + (filtered && !matched.has(d.id) ? " is-unmatched" : ""), tabindex: "0", role: "button" });
-      g.setAttribute("aria-label", `${d.title}, ${d.status_label}, ${fmt(d.start)}`);
-      const title = s("title");
-      title.textContent = `${d.title} (${d.status_label})\n${fmt(d.start)} – ${d.end ? fmt(d.end) : "no end date"}`;
-      // Invisible full-row hit target so the label and dot both respond.
-      g.append(title, s("rect", { class: "graph-hit", x: 0, y: y(d) - ROW / 2, width: "100%", height: ROW }));
-      g.append(s("circle", { class: "graph-dot", cx: x(d), cy: y(d), r: R }));
-      const label = s("text", { x: labelX, y: y(d) + 4, class: "graph-label" });
-      const date = s("tspan", { class: "graph-date" });
-      date.textContent = fmt(d.start) + "  ";
-      const name = s("tspan");
-      name.textContent = d.title.length > 34 ? d.title.slice(0, 33) + "…" : d.title;
-      label.append(date, name);
-      // Status in words too, so it never rests on dot color alone.
-      if (d.status !== "ongoing") {
-        const status = s("tspan", { class: "graph-date" });
-        status.textContent = `  · ${d.status_label}`;
-        label.append(status);
-      }
-      g.append(label);
-      g.addEventListener("click", () => openDrawer(d.id));
-      g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDrawer(d.id); } });
-      g.addEventListener("mouseenter", () => highlight(d.id));
-      g.addEventListener("mouseleave", () => highlight(null));
-      g.addEventListener("focus", () => highlight(d.id));
-      g.addEventListener("blur", () => highlight(null));
-      nodeLayer.append(g);
-      nodeEls.set(d.id, g);
+      const node = el("button", {
+        type: "button",
+        class: `graph-node status-node-${d.status}${filtered && !matched.has(d.id) ? " is-unmatched" : ""}`,
+        style: `left:${d.x}px;top:${d.y}px;width:${NODE_W}px;height:${NODE_H}px`,
+        title: d.title,
+      });
+      node.append(el("span", { class: "graph-node-title" }, d.title));
+      node.append(el("span", { class: "graph-node-meta" }, `${fmt(d.start)} · ${d.status_label}`));
+      node.addEventListener("click", () => { if (!dragged) openDrawer(d.id); });
+      node.addEventListener("mouseenter", () => highlight(d.id));
+      node.addEventListener("mouseleave", () => highlight(null));
+      node.addEventListener("focus", () => highlight(d.id));
+      node.addEventListener("blur", () => highlight(null));
+      world.append(node);
+      nodeEls.set(d.id, node);
     });
+  }
+
+  // ------------------------------------------------------------- pan & zoom
+  let scale = 1, tx = 0, ty = 0, dragged = false;
+  const MIN = 0.3, MAX = 2;
+  const apply = () => { world.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`; };
+  function zoomAt(factor, cx, cy) {
+    const next = Math.min(MAX, Math.max(MIN, scale * factor));
+    tx = cx - (cx - tx) * (next / scale);
+    ty = cy - (cy - ty) * (next / scale);
+    scale = next;
+    apply();
+  }
+  // floor keeps text readable on load; the Fit button may zoom out further.
+  function fit(floor = MIN) {
+    const pad = 20;
+    const w = parseFloat(world.style.width), h = parseFloat(world.style.height);
+    scale = Math.max(floor, Math.min(1, (canvas.clientWidth - pad * 2) / w, (canvas.clientHeight - pad * 2) / h));
+    tx = Math.max(pad, (canvas.clientWidth - w * scale) / 2);
+    ty = Math.max(pad, (canvas.clientHeight - h * scale) / 2);
+    apply();
+  }
+  function centerOn(id) {
+    const d = byId.get(id);
+    if (!d || !canvas) return;
+    const cx = (d.x + NODE_W / 2) * scale + tx, cy = (d.y + NODE_H / 2) * scale + ty;
+    if (cx < 0 || cx > canvas.clientWidth || cy < 0 || cy > canvas.clientHeight) {
+      tx += canvas.clientWidth / 2 - cx;
+      ty += canvas.clientHeight / 2 - cy;
+      apply();
+    }
+  }
+  if (canvas) {
+    let start = null;
+    canvas.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0 || e.target.closest(".graph-zoom")) return;
+      start = { x: e.clientX, y: e.clientY, tx, ty };
+      dragged = false;
+    });
+    window.addEventListener("pointermove", (e) => {
+      if (!start) return;
+      const dx = e.clientX - start.x, dy = e.clientY - start.y;
+      if (!dragged && Math.hypot(dx, dy) < 4) return;
+      dragged = true;
+      canvas.classList.add("is-panning");
+      tx = start.tx + dx;
+      ty = start.ty + dy;
+      apply();
+    });
+    window.addEventListener("pointerup", () => {
+      start = null;
+      canvas.classList.remove("is-panning");
+      setTimeout(() => { dragged = false; }, 0);
+    });
+    canvas.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      zoomAt(e.deltaY < 0 ? 1.1 : 1 / 1.1, e.clientX - rect.left, e.clientY - rect.top);
+    }, { passive: false });
+    canvas.querySelectorAll("[data-zoom]").forEach((btn) => btn.addEventListener("click", () => {
+      const mode = btn.dataset.zoom;
+      if (mode === "fit") return fit();
+      zoomAt(mode === "in" ? 1.2 : 1 / 1.2, canvas.clientWidth / 2, canvas.clientHeight / 2);
+    }));
+    fit(0.8);
+    window.addEventListener("resize", () => fit(0.8));
   }
 
   // --------------------------------------------------------- lineage hover
@@ -177,8 +229,8 @@
   const rows = document.querySelectorAll(".decision-row");
   function highlight(id) {
     const ids = id ? lineage(id) : null;
-    svg && svg.classList.toggle("has-focus", !!ids);
-    nodeEls.forEach((g, nid) => g.classList.toggle("is-lit", !!ids && ids.has(nid)));
+    canvas && canvas.classList.toggle("has-focus", !!ids);
+    nodeEls.forEach((n, nid) => n.classList.toggle("is-lit", !!ids && ids.has(nid)));
     edgeEls.forEach((e) => e.classList.toggle("is-lit", !!ids && ids.has(e.dataset.from) && ids.has(e.dataset.to)));
     rows.forEach((r) => r.classList.toggle("is-lit", r.dataset.decisionId === id));
   }
@@ -245,14 +297,15 @@
     follow.append(el("h2", {}, "Follow-ups"));
     if (d.children.length) {
       const ul = el("ul", { class: "drawer-children" });
-      d.children.forEach((c) => { const li = el("li"); li.append(decisionLink(c), el("span", { class: "hint" }, ` · ${fmt(c.start)}`)); ul.append(li); });
+      d.children.forEach((c) => { const li = el("li"); li.append(decisionLink(c), el("span", { class: "hint" }, ` · ${fmt(c.start)} · ${c.status_label}`)); ul.append(li); });
       follow.append(ul);
     } else {
       follow.append(el("p", { class: "hint" }, "No follow-up decisions yet."));
     }
     body.append(follow);
 
-    nodeEls.forEach((g, nid) => g.classList.toggle("is-selected", nid === id));
+    nodeEls.forEach((n, nid) => n.classList.toggle("is-selected", nid === id));
+    centerOn(id);
     rows.forEach((r) => r.classList.toggle("is-selected", r.dataset.decisionId === id));
     backdrop.hidden = false;
     drawer.setAttribute("aria-hidden", "false");
@@ -268,7 +321,7 @@
     backdrop.classList.remove("is-open");
     drawer.setAttribute("aria-hidden", "true");
     setTimeout(() => { backdrop.hidden = true; }, 220);
-    nodeEls.forEach((g) => g.classList.remove("is-selected"));
+    nodeEls.forEach((n) => n.classList.remove("is-selected"));
     rows.forEach((r) => r.classList.remove("is-selected"));
     history.replaceState(null, "", location.pathname + location.search);
     if (lastFocus) lastFocus.focus();
