@@ -571,15 +571,7 @@ main.main-wide { max-width: 1400px; }
 .legend-dot-completed { background: var(--col-completed); border-color: var(--col-completed); }
 .legend-dot-abandoned { background: var(--panel); border-color: var(--col-abandoned); }
 
-.decision-timeline { display: flex; align-items: center; gap: 10px; margin: 12px 0 8px; }
-.decision-timeline input[type="range"] { flex: 1; min-width: 80px; accent-color: var(--accent); }
-.decision-timeline output { min-width: 11em; text-align: right; }
-@media (max-width: 600px) {
-  .decision-timeline { flex-wrap: wrap; }
-  .decision-timeline output { min-width: 0; text-align: left; flex-basis: 100%; }
-}
-
-.decision-graph-scroll { overflow: auto; max-height: calc(100vh - 260px); min-height: 120px; border-top: 1px solid var(--panel-border); padding-top: 4px; }
+.decision-graph-scroll { overflow: auto; max-height: calc(100vh - 220px); min-height: 120px; margin-top: 12px; border-top: 1px solid var(--panel-border); padding-top: 4px; }
 #decision-graph { display: block; }
 .graph-edge { fill: none; stroke: var(--panel-border); stroke-width: 2; transition: stroke 0.15s, opacity 0.25s; }
 .graph-hit { fill: transparent; }
@@ -596,7 +588,6 @@ main.main-wide { max-width: 1400px; }
 .graph-node.is-unmatched { opacity: 0.35; }
 #decision-graph.has-focus .graph-node:not(.is-lit) { opacity: 0.3; }
 .graph-edge.is-lit { stroke: var(--accent); }
-.graph-node.is-future, .graph-edge.is-future { opacity: 0 !important; pointer-events: none; }
 
 .decision-list-pane { min-width: 0; }
 .decision-row.is-lit, .decision-row.is-selected { border-color: var(--accent); }

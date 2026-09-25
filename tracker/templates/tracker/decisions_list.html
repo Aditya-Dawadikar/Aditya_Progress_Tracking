@@ -21,11 +21,6 @@
       <div class="decision-legend" aria-hidden="true"><span><i class="legend-dot"></i>Ongoing</span><span><i class="legend-dot legend-dot-completed"></i>Completed</span><span><i class="legend-dot legend-dot-abandoned"></i>Abandoned</span></div>
     </div>
     {% if explorer %}
-      <div class="decision-timeline">
-        <button type="button" class="btn" id="decision-play" aria-label="Replay how the graph grew">▶ Replay</button>
-        <input type="range" id="decision-scrub" min="1" max="{{ explorer|length }}" value="{{ explorer|length }}" aria-label="Show the graph as of this decision">
-        <output id="decision-scrub-label" for="decision-scrub" class="hint"></output>
-      </div>
       <div class="decision-graph-scroll"><svg id="decision-graph" role="group" aria-label="Decision graph, oldest at the top"></svg></div>
       {% if filtered %}<p class="hint">Decisions that don't match the filters are faded.</p>{% endif %}
     {% else %}
@@ -196,36 +191,6 @@
       openDrawer(row.dataset.decisionId);
     });
   });
-
-  // ------------------------------------------------------- growth replay
-  const scrub = document.getElementById("decision-scrub");
-  const scrubLabel = document.getElementById("decision-scrub-label");
-  const playBtn = document.getElementById("decision-play");
-  let timer = null;
-  function showUpTo(count) {
-    decisions.forEach((d) => nodeEls.get(d.id).classList.toggle("is-future", d.row >= count));
-    edgeEls.forEach((e) => e.classList.toggle("is-future", byId.get(e.dataset.to).row >= count || byId.get(e.dataset.from).row >= count));
-    const last = decisions[count - 1];
-    scrubLabel.textContent = count === decisions.length
-      ? `All ${decisions.length} decision${decisions.length === 1 ? "" : "s"}`
-      : `${count} of ${decisions.length}, as of ${fmt(last.start)}`;
-  }
-  function stop() { clearInterval(timer); timer = null; playBtn.textContent = "▶ Replay"; }
-  if (scrub) {
-    scrub.addEventListener("input", () => { stop(); showUpTo(+scrub.value); });
-    playBtn.addEventListener("click", () => {
-      if (timer) return stop();
-      scrub.value = 1;
-      showUpTo(1);
-      playBtn.textContent = "❚❚ Pause";
-      timer = setInterval(() => {
-        if (+scrub.value >= decisions.length) return stop();
-        scrub.value = +scrub.value + 1;
-        showUpTo(+scrub.value);
-      }, 700);
-    });
-    showUpTo(decisions.length);
-  }
 
   // --------------------------------------------------------------- drawer
   const drawer = document.getElementById("decision-drawer");
