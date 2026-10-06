@@ -1,3 +1,4 @@
+import csv
 import hmac
 import json
 from datetime import datetime
@@ -307,7 +308,7 @@ def _decision_explorer_data(request):
     return [
         {
             "id": str(d.pk),
-            "parent": str(d.parent_id) if d.parent_id else None,
+            "parents": [str(p.pk) for p in d.parent_list],
             "title": d.title,
             "description": d.description,
             "motivation": d.motivation,
@@ -322,7 +323,7 @@ def _decision_explorer_data(request):
             "edit_url": reverse("tracker:decision_edit", args=[d.pk]),
             "delete_url": reverse("tracker:decision_delete", args=[d.pk]),
         }
-        for d in Decision.objects.select_related("created_by").order_by("start_date", "created_at", "id")
+        for d in Decision.with_parents(Decision.objects.select_related("created_by").order_by("start_date", "created_at", "id"))
     ]
 
 
@@ -333,8 +334,9 @@ def decisions_graph(request):
     })
 
 
-def decisions_list(request):
-    decisions = Decision.objects.select_related("parent")
+def _filtered_decisions(request):
+    """Decisions matching the list filters in ``request.GET``, plus the bound form."""
+    decisions = Decision.objects.select_related("created_by")
     filter_form = DecisionFilterForm(request.GET)
     if filter_form.is_valid():
         data = filter_form.cleaned_data
@@ -353,12 +355,50 @@ def decisions_list(request):
             decisions = decisions.filter(start_date__gte=data["start"])
         if data["end"]:
             decisions = decisions.filter(start_date__lte=data["end"])
+    return decisions, filter_form
+
+
+def decisions_list(request):
+    decisions, filter_form = _filtered_decisions(request)
     return render(request, "tracker/decisions_list.html", {
         "tab": "list",
-        "decisions": decisions,
+        "decisions": Decision.with_parents(decisions),
         "filter_form": filter_form,
+        "is_filtered": any(request.GET.get(name, "").strip() for name in filter_form.fields),
         "explorer": _decision_explorer_data(request),
     })
+
+
+def _csv_safe(value):
+    """Neutralise spreadsheet formulas in user-entered text (CSV injection)."""
+    return f"'{value}" if value and value[0] in "=+-@\t\r" else value
+
+
+def decisions_export_csv(request):
+    """CSV of the decisions matching the same filters as the list (all when unfiltered)."""
+    decisions, filter_form = _filtered_decisions(request)
+    filtered = any(request.GET.get(name, "").strip() for name in filter_form.fields)
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    filename = f"decisions{'-filtered' if filtered else ''}-{timezone.localdate().isoformat()}.csv"
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    response.write("\ufeff")  # BOM so Excel reads the file as UTF-8
+    writer = csv.writer(response)
+    writer.writerow([
+        "id", "title", "status", "start_date", "end_date", "parent_ids", "parent_titles",
+        "description", "motivation", "rollback_reasons", "created_by", "created_at", "updated_at",
+    ])
+    for d in Decision.with_parents(decisions.order_by("start_date", "created_at", "id")):
+        parents = d.parent_list
+        writer.writerow([
+            d.pk, _csv_safe(d.title), d.get_status_display(), d.start_date.isoformat(),
+            d.end_date.isoformat() if d.end_date else "",
+            "; ".join(str(p.pk) for p in parents), _csv_safe("; ".join(p.title for p in parents)),
+            _csv_safe(d.description), _csv_safe(d.motivation), _csv_safe(d.rollback_reasons),
+            _csv_safe(d.created_by.name),
+            timezone.localtime(d.created_at).isoformat(timespec="seconds"),
+            timezone.localtime(d.updated_at).isoformat(timespec="seconds"),
+        ])
+    return response
 
 
 @require_member
@@ -369,19 +409,20 @@ def decision_create(request):
             decision = form.save(commit=False)
             decision.created_by = request.member
             decision.save()
+            form.save_m2m()
             messages.success(request, f"Decision “{decision.title}” recorded.")
             return redirect(decision.get_absolute_url())
     else:
-        form = DecisionForm(initial={"parent_ref": request.GET.get("parent", "")})
+        form = DecisionForm(initial={"parent_refs": request.GET.getlist("parent")})
     return render(request, "tracker/decision_form.html", {"form": form, "is_new": True})
 
 
 def decision_detail(request, pk):
-    decision = get_object_or_404(Decision.objects.select_related("parent", "created_by"), pk=pk)
+    decision = get_object_or_404(Decision.objects.select_related("created_by"), pk=pk)
     return render(request, "tracker/decision_detail.html", {
         "decision": decision,
-        "ancestors": decision.ancestors(),
-        "children": decision.children.all(),
+        "parents": decision.parents.order_by("start_date", "title"),
+        "children": decision.children.order_by("start_date", "title"),
     })
 
 
@@ -411,8 +452,11 @@ def decision_delete(request, pk):
     if request.method == "POST":
         form = DeleteConfirmationForm(request.POST)
         if form.is_valid() and form.cleaned_data["name"] == decision.title:
-            # Re-attach children to this decision's parent so the chain stays linked.
-            decision.children.update(parent=decision.parent)
+            # Link each follow-up to this decision's own parents so the graph
+            # stays connected once this node is gone.
+            parents = list(decision.parents.all())
+            for child in decision.children.all():
+                child.parents.add(*[p for p in parents if p.pk != child.pk])
             decision.delete()
             messages.success(request, "Decision deleted.")
             return redirect("tracker:decisions_graph")

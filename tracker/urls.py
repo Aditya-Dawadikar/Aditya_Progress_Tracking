@@ -29,6 +29,7 @@ urlpatterns = [
     path("decisions/", views.decisions_graph, name="decisions_graph"),
     path("decisions/list/", views.decisions_list, name="decisions_list"),
     path("decisions/new/", views.decision_create, name="decision_create"),
+    path("decisions/export.csv", views.decisions_export_csv, name="decisions_export_csv"),
     path("decisions/<str:pk>/", views.decision_detail, name="decision_detail"),
     path("decisions/<str:pk>/edit/", views.decision_edit, name="decision_edit"),
     path("decisions/<str:pk>/delete/", views.decision_delete, name="decision_delete"),

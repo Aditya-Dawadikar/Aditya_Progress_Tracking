@@ -2,7 +2,7 @@
 {% block title %}Decisions · Goalpost{% endblock %}
 {% block main_class %}main-wide{% endblock %}
 {% block content %}
-<div class="page-header"><h1>Decisions</h1><a href="{% url 'tracker:decision_create' %}" class="btn btn-primary">New decision</a></div>
+<div class="page-header"><h1>Decisions</h1><div class="page-header-actions"><a href="{% url 'tracker:decisions_export_csv' %}" class="btn" download>Export all (CSV)</a><a href="{% url 'tracker:decision_create' %}" class="btn btn-primary">New decision</a></div></div>
 <nav class="subtabs" aria-label="Decision views">
   <a href="{% url 'tracker:decisions_graph' %}" class="subtab{% if tab == 'graph' %} is-active{% endif %}"{% if tab == 'graph' %} aria-current="page"{% endif %}>Graph</a>
   <a href="{% url 'tracker:decisions_list' %}" class="subtab{% if tab == 'list' %} is-active{% endif %}"{% if tab == 'list' %} aria-current="page"{% endif %}>List</a>
@@ -35,13 +35,13 @@
       <div class="filter-field">{{ filter_form.status.label_tag }}{{ filter_form.status }}</div>
       <div class="filter-field">{{ filter_form.start.label_tag }}{{ filter_form.start }}</div>
       <div class="filter-field">{{ filter_form.end.label_tag }}{{ filter_form.end }}</div>
-      <div class="filter-actions"><button type="submit" class="btn btn-primary">Apply</button><a href="{% url 'tracker:decisions_list' %}" class="btn">Clear</a></div>
+      <div class="filter-actions"><button type="submit" class="btn btn-primary">Apply</button><a href="{% url 'tracker:decisions_list' %}" class="btn">Clear</a>{% if is_filtered %}<a href="{% url 'tracker:decisions_export_csv' %}?{{ request.GET.urlencode }}" class="btn" download>Export {{ decisions|length }} filtered (CSV)</a>{% endif %}</div>
     </form>
   </details>
   {% if decisions %}
     <div class="event-list">
       {% for decision in decisions %}
-        <a href="{{ decision.get_absolute_url }}" class="event-row decision-row{% if decision.is_closed %} event-past{% endif %}" data-decision-id="{{ decision.pk }}"><time datetime="{{ decision.start_date|date:'Y-m-d' }}">{{ decision.start_date|date:"M j, Y" }}{% if decision.end_date %} – {{ decision.end_date|date:"M j, Y" }}{% endif %}</time><div><h2>{{ decision.title }} <span class="status-pill status-{{ decision.status }}">{{ decision.get_status_display }}</span></h2>{% if decision.description %}<p>{{ decision.description|truncatechars:140 }}</p>{% endif %}<small>{% if decision.parent %}Follows “{{ decision.parent.title }}”{% else %}Top-level decision{% endif %}</small></div></a>
+        <a href="{{ decision.get_absolute_url }}" class="event-row decision-row{% if decision.is_closed %} event-past{% endif %}" data-decision-id="{{ decision.pk }}"><time datetime="{{ decision.start_date|date:'Y-m-d' }}">{{ decision.start_date|date:"M j, Y" }}{% if decision.end_date %} – {{ decision.end_date|date:"M j, Y" }}{% endif %}</time><div><h2>{{ decision.title }} <span class="status-pill status-{{ decision.status }}">{{ decision.get_status_display }}</span></h2>{% if decision.description %}<p>{{ decision.description|truncatechars:140 }}</p>{% endif %}<small>{% for parent in decision.parent_list %}{% if forloop.first %}Follows {% else %}, {% endif %}“{{ parent.title }}”{% empty %}Top-level decision{% endfor %}</small></div></a>
       {% endfor %}
     </div>
   {% else %}<p class="empty-state">No decisions match these filters.</p>{% endif %}
@@ -68,7 +68,11 @@
   const decisions = JSON.parse(document.getElementById("decision-data").textContent);
   const createUrl = "{% url 'tracker:decision_create' %}";
   const byId = new Map(decisions.map((d) => [d.id, Object.assign(d, { children: [] })]));
-  decisions.forEach((d) => { if (d.parent && byId.has(d.parent)) byId.get(d.parent).children.push(d); else d.parent = null; });
+  decisions.forEach((d) => {
+    // Ignore links to decisions that no longer exist (or to itself).
+    d.parents = (d.parents || []).filter((pid) => pid !== d.id && byId.has(pid));
+    d.parents.forEach((pid) => byId.get(pid).children.push(d));
+  });
 
   const fmt = (iso) => new Date(iso + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
   const el = (tag, attrs = {}, text) => {
@@ -79,29 +83,46 @@
   };
 
   // ------------------------------------------------------------------ layout
-  // Left-to-right tree: each top-level decision roots a tree, follow-ups sit
-  // one column to the right of their parent in start-date order, leaves take
+  // Left to right: a decision's column is the longest path back to a
+  // top-level decision, so every link points rightwards even when a decision
+  // follows several others. Rows come from a spanning tree in which each
+  // decision hangs off its right-most ("primary") parent: leaves take
   // consecutive slots down the page and every parent is centred beside its
-  // children. Trees stack top to bottom, oldest first.
+  // tree children. Links to other parents are drawn too, just not used for
+  // placement. Trees stack top to bottom, oldest first.
   const NODE_W = 184, NODE_H = 72, GAP_X = 48, GAP_Y = 14;
-  let nextY = 0, maxDepth = 0;
+  const visiting = new Set();
+  function depthOf(d) {
+    if (d.depth !== undefined) return d.depth;
+    if (visiting.has(d.id)) return 0; // guards against a corrupt cycle
+    visiting.add(d.id);
+    const depth = d.parents.length ? 1 + Math.max(...d.parents.map((pid) => depthOf(byId.get(pid)))) : 0;
+    visiting.delete(d.id);
+    return (d.depth = depth);
+  }
+  decisions.forEach(depthOf);
+  const maxDepth = Math.max(0, ...decisions.map((d) => d.depth));
+  decisions.forEach((d) => {
+    d.treeKids = [];
+    d.primary = d.parents.reduce((best, pid) => (best === null || byId.get(pid).depth > byId.get(best).depth ? pid : best), null);
+  });
+  decisions.forEach((d) => { if (d.primary) byId.get(d.primary).treeKids.push(d); });
+  let nextY = 0;
   const placed = new Set();
-  function place(d, depth) {
+  function place(d) {
     placed.add(d.id);
-    d.depth = depth;
-    maxDepth = Math.max(maxDepth, depth);
-    const kids = d.children.filter((c) => !placed.has(c.id));
-    kids.forEach((c) => place(c, depth + 1));
+    const kids = d.treeKids.filter((c) => !placed.has(c.id));
+    kids.forEach(place);
     if (kids.length) {
       d.y = (kids[0].y + kids[kids.length - 1].y) / 2;
     } else {
       d.y = nextY;
       nextY += NODE_H + GAP_Y;
     }
-    d.x = depth * (NODE_W + GAP_X);
+    d.x = d.depth * (NODE_W + GAP_X);
   }
-  decisions.filter((d) => !d.parent).forEach((root) => { place(root, 0); nextY += GAP_Y * 2; });
-  decisions.filter((d) => !placed.has(d.id)).forEach((d) => place(d, 0)); // guards against a corrupt cycle
+  decisions.filter((d) => !d.primary).forEach((root) => { place(root); nextY += GAP_Y * 2; });
+  decisions.filter((d) => !placed.has(d.id)).forEach(place); // guards against a corrupt cycle
 
   const canvas = document.getElementById("graph-canvas");
   const world = document.getElementById("graph-world");
@@ -117,9 +138,8 @@
     edgesSvg.setAttribute("width", worldW);
     edgesSvg.setAttribute("height", worldH);
 
-    decisions.forEach((d) => {
-      if (!d.parent) return;
-      const p = byId.get(d.parent);
+    decisions.forEach((d) => d.parents.forEach((pid) => {
+      const p = byId.get(pid);
       const x1 = p.x + NODE_W, y1 = p.y + NODE_H / 2, x2 = d.x, y2 = d.y + NODE_H / 2;
       const mid = (x1 + x2) / 2;
       const edge = document.createElementNS("http://www.w3.org/2000/svg", "path");
@@ -129,7 +149,7 @@
       edge.dataset.to = d.id;
       edgesSvg.append(edge);
       edgeEls.push(edge);
-    });
+    }));
 
     decisions.forEach((d) => {
       const node = el("button", {
@@ -219,9 +239,12 @@
   // --------------------------------------------------------- lineage hover
   const lineage = (id) => {
     const ids = new Set([id]);
-    for (let n = byId.get(id); n && n.parent && !ids.has(n.parent); n = byId.get(n.parent)) ids.add(n.parent);
-    const stack = [...byId.get(id).children];
-    while (stack.length) { const c = stack.pop(); if (!ids.has(c.id)) { ids.add(c.id); stack.push(...c.children); } }
+    const walk = (start, next) => {
+      const stack = [...next(byId.get(start))];
+      while (stack.length) { const n = stack.pop(); if (!ids.has(n.id)) { ids.add(n.id); stack.push(...next(n)); } }
+    };
+    walk(id, (n) => n.parents.map((pid) => byId.get(pid)));
+    walk(id, (n) => n.children);
     return ids;
   };
   const rows = document.querySelectorAll(".decision-row");
@@ -266,10 +289,12 @@
 
     const trail = document.getElementById("drawer-trail");
     trail.replaceChildren();
-    const chain = [];
-    for (let n = d.parent && byId.get(d.parent); n && chain.length < 50; n = n.parent && byId.get(n.parent)) chain.unshift(n);
-    chain.forEach((n, i) => { if (i) trail.append(" › "); trail.append(decisionLink(n)); });
-    if (!chain.length) trail.textContent = "Top-level decision";
+    if (d.parents.length) {
+      trail.append("Follows ");
+      d.parents.forEach((pid, i) => { if (i) trail.append(", "); trail.append(decisionLink(byId.get(pid))); });
+    } else {
+      trail.textContent = "Top-level decision";
+    }
 
     const heading = document.getElementById("drawer-title");
     heading.textContent = `${d.title} `;

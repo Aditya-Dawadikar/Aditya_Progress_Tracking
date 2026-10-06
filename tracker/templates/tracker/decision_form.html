@@ -4,3 +4,20 @@
 <h1>{% if is_new %}New decision{% else %}Edit “{{ decision.title }}”{% endif %}</h1>
 <form method="post" class="panel">{% csrf_token %}{{ form.as_p }}<datalist id="decision-options">{% for option in form.parent_choices %}<option value="{{ option.title }} [{{ option.pk }}]">{% endfor %}</datalist><button type="submit" class="btn btn-primary">{% if is_new %}Record decision{% else %}Save changes{% endif %}</button><a href="{% if decision %}{{ decision.get_absolute_url }}{% else %}{% url 'tracker:decisions_graph' %}{% endif %}" class="btn">Cancel</a></form>
 {% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll("[data-add-parent]").forEach((button) => {
+  const list = button.previousElementSibling;
+  button.hidden = false;
+  button.addEventListener("click", () => {
+    const inputs = list.querySelectorAll("input");
+    const input = inputs[0].cloneNode();
+    input.removeAttribute("value");
+    input.id = `${inputs[0].id}_${inputs.length}`;
+    list.append(input);
+    input.focus();
+  });
+});
+</script>
+{% endblock %}

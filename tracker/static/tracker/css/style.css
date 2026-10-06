@@ -230,6 +230,7 @@ input, textarea, select {
   font-family: inherit;
 }
 input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
+.parent-refs { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
 
 .btn {
   display: inline-block;

@@ -2,6 +2,8 @@ import re
 
 from bson import ObjectId
 from django import forms
+from django.forms.utils import flatatt
+from django.utils.html import format_html, format_html_join
 
 from .models import CATEGORY_PALETTE, Category, Decision, Event, EventComment, Goal, GoalBoard, Meeting, Member, TodoTask, GoalComment, TodoTaskComment
 
@@ -206,14 +208,53 @@ def _decision_label(decision):
     return f"{decision.title} [{decision.pk}]"
 
 
+class ParentRefsWidget(forms.Widget):
+    """One text box per parent (each backed by the shared <datalist> of
+    "Title [id]" suggestions) plus a blank one for adding another. Submits
+    every box under the same name; with JS, a button adds more boxes."""
+
+    def value_from_datadict(self, data, files, name):
+        return data.getlist(name) if hasattr(data, "getlist") else data.get(name, [])
+
+    def value_omitted_from_data(self, data, files, name):
+        return name not in data
+
+    def render(self, name, value, attrs=None, renderer=None):
+        values = [v for v in (value or []) if v] + [""]
+        attrs = self.build_attrs(self.attrs, attrs)
+        base_id = attrs.pop("id", f"id_{name}")
+        inputs = format_html_join(
+            "",
+            '<input type="text" name="{}" value="{}" id="{}"{}>',
+            (
+                (name, v, base_id if i == 0 else f"{base_id}_{i}", flatatt(attrs))
+                for i, v in enumerate(values)
+            ),
+        )
+        return format_html(
+            '<span class="parent-refs" data-parent-refs>{}</span>'
+            '<button type="button" class="btn" data-add-parent hidden>Add another parent</button>',
+            inputs,
+        )
+
+
+class ParentRefsField(forms.Field):
+    widget = ParentRefsWidget
+
+    def to_python(self, value):
+        if isinstance(value, str):
+            value = [value]
+        return [v.strip() for v in (value or []) if v and v.strip()]
+
+
 class DecisionForm(forms.ModelForm):
-    # Typed free text (backed by a <datalist> of "Title [id]" suggestions) so a
-    # parent can be found by searching either its title or its id.
-    parent_ref = forms.CharField(
+    # Typed free text so a parent can be found by searching either its title
+    # or its id. Any number of parents can be given.
+    parent_refs = ParentRefsField(
         required=False,
-        label="Parent decision",
-        help_text="Search by title or id. Leave blank for a top-level decision.",
-        widget=forms.TextInput(attrs={"list": "decision-options", "autocomplete": "off", "placeholder": "Title or id"}),
+        label="Parent decisions",
+        help_text="Search by title or id. Add several if this decision follows from more than one. Leave blank for a top-level decision.",
+        widget=ParentRefsWidget(attrs={"list": "decision-options", "autocomplete": "off", "placeholder": "Title or id"}),
     )
 
     class Meta:
@@ -228,21 +269,18 @@ class DecisionForm(forms.ModelForm):
             "end_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
         }
 
-    field_order = ["title", "status", "parent_ref", "description", "start_date", "end_date", "motivation", "rollback_reasons"]
+    field_order = ["title", "status", "parent_refs", "description", "start_date", "end_date", "motivation", "rollback_reasons"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         excluded = set()
         if self.instance.pk:
             excluded = {self.instance.pk} | self.instance.descendant_ids()
-            if self.instance.parent_id and not self.is_bound:
-                self.initial["parent_ref"] = _decision_label(self.instance.parent)
+            if not self.is_bound:
+                self.initial["parent_refs"] = [_decision_label(p) for p in self.instance.parents.order_by("start_date", "title")]
         self.parent_choices = Decision.objects.exclude(pk__in=excluded).order_by("title")
 
-    def clean_parent_ref(self):
-        ref = self.cleaned_data["parent_ref"].strip()
-        if not ref:
-            return None
+    def _resolve_parent(self, ref):
         # Accept "Title [id]" (from the suggestions), a bare id, or a title.
         match = re.search(r"\[([0-9a-fA-F]{24})\]\s*$", ref)
         candidate_id = match.group(1) if match else ref
@@ -256,12 +294,26 @@ class DecisionForm(forms.ModelForm):
         if len(matches) == 1:
             return matches[0]
         if matches:
-            raise forms.ValidationError("Several decisions match that title — pick one from the suggestions or use its id.")
-        raise forms.ValidationError("No decision matches that title or id (a decision can't be its own ancestor).")
+            raise forms.ValidationError(f"Several decisions match “{ref}” — pick one from the suggestions or use its id.")
+        raise forms.ValidationError(f"No decision matches “{ref}” (a decision can't be its own ancestor).")
 
-    def save(self, commit=True):
-        self.instance.parent = self.cleaned_data["parent_ref"]
-        return super().save(commit=commit)
+    def clean_parent_refs(self):
+        parents, errors = [], []
+        for ref in self.cleaned_data["parent_refs"]:
+            try:
+                parent = self._resolve_parent(ref)
+            except forms.ValidationError as exc:
+                errors.extend(exc.messages)
+                continue
+            if parent not in parents:
+                parents.append(parent)
+        if errors:
+            raise forms.ValidationError(errors)
+        return parents
+
+    def _save_m2m(self):
+        super()._save_m2m()
+        self.instance.parents.set(self.cleaned_data["parent_refs"])
 
 
 class DecisionFilterForm(forms.Form):

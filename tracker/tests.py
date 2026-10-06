@@ -1,11 +1,18 @@
+import csv
 import datetime
+import io
 import json
 
+from bson import ObjectId
+from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.db import connection
+from django.db.migrations.executor import MigrationExecutor
+from django.test import TestCase, TransactionTestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from .auth import issue_token
 from .forms import DecisionForm
 from .models import Category, Decision, Event, EventComment, Goal, GoalActivity, GoalBoard, GoalComment, Member, TodoTask, TodoTaskComment
 from .services import goal_io
@@ -130,39 +137,69 @@ class DecisionTests(TestCase):
     def setUp(self):
         self.member = Member.objects.create(name="Alex")
         self.root = Decision.objects.create(title="Use MongoDB", created_by=self.member)
-        self.child = Decision.objects.create(title="Add indexes", parent=self.root, created_by=self.member)
+        self.child = Decision.objects.create(title="Add indexes", created_by=self.member)
+        self.child.parents.add(self.root)
+        self.client.cookies[settings.JWT_COOKIE_NAME] = issue_token()
         session = self.client.session
         session["member_id"] = str(self.member.pk)
         session.save()
 
     def test_chain_links_parents_and_children(self):
-        grandchild = Decision.objects.create(title="Drop index", parent=self.child, created_by=self.member)
-        self.assertEqual(grandchild.ancestors(), [self.root, self.child])
+        grandchild = Decision.objects.create(title="Drop index", created_by=self.member)
+        grandchild.parents.add(self.child)
+        self.assertEqual(grandchild.ancestor_ids(), {self.root.pk, self.child.pk})
         self.assertEqual(self.root.descendant_ids(), {self.child.pk, grandchild.pk})
 
     def test_parent_can_be_found_by_title_or_id(self):
         base = {"title": "Next", "status": "ongoing", "start_date": days(0)}
         for ref in ["use mongodb", str(self.root.pk), f"Use MongoDB [{self.root.pk}]"]:
-            form = DecisionForm(data={**base, "parent_ref": ref})
+            form = DecisionForm(data={**base, "parent_refs": ref})
             self.assertTrue(form.is_valid(), form.errors)
-            self.assertEqual(form.cleaned_data["parent_ref"], self.root)
+            self.assertEqual(form.cleaned_data["parent_refs"], [self.root])
+
+    def test_decision_can_have_several_parents(self):
+        other = Decision.objects.create(title="Self-host", created_by=self.member)
+        response = self.client.post(reverse("tracker:decision_create"), {
+            "title": "Run Mongo on Railway", "status": "ongoing", "start_date": days(0),
+            "parent_refs": [f"Add indexes [{self.child.pk}]", "self-host", "", str(other.pk)],
+        }, secure=True)
+        self.assertEqual(response.status_code, 302)
+        decision = Decision.objects.get(title="Run Mongo on Railway")
+        self.assertEqual(set(decision.parents.all()), {self.child, other})
+        self.assertEqual(decision.ancestor_ids(), {self.root.pk, self.child.pk, other.pk})
+
+        form = DecisionForm(instance=decision)
+        self.assertEqual(form.initial["parent_refs"], [f"Add indexes [{self.child.pk}]", f"Self-host [{other.pk}]"])
+        response = self.client.post(reverse("tracker:decision_edit", args=[decision.pk]), {
+            "title": decision.title, "status": "ongoing", "start_date": days(0), "parent_refs": [str(other.pk)],
+        }, secure=True)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(list(decision.parents.all()), [other])
+
+    def test_every_bad_parent_ref_is_reported(self):
+        form = DecisionForm(data={"title": "X", "status": "ongoing", "start_date": days(0), "parent_refs": ["nope", "use mongodb", "zilch"]})
+        self.assertFalse(form.is_valid())
+        self.assertEqual(len(form.errors["parent_refs"]), 2)
 
     def test_parent_cannot_create_a_cycle(self):
-        form = DecisionForm(data={"title": "Use MongoDB", "status": "ongoing", "start_date": days(0), "parent_ref": str(self.child.pk)}, instance=self.root)
+        form = DecisionForm(data={"title": "Use MongoDB", "status": "ongoing", "start_date": days(0), "parent_refs": str(self.child.pk)}, instance=self.root)
         self.assertFalse(form.is_valid())
-        self.assertIn("parent_ref", form.errors)
+        self.assertIn("parent_refs", form.errors)
 
     def test_end_date_must_follow_start_date(self):
         form = DecisionForm(data={"title": "X", "status": "ongoing", "start_date": days(0), "end_date": days(-1)})
         self.assertFalse(form.is_valid())
         self.assertIn("end_date", form.errors)
 
-    def test_deleting_relinks_children_to_grandparent(self):
-        grandchild = Decision.objects.create(title="Drop index", parent=self.child, created_by=self.member)
+    def test_deleting_relinks_children_to_grandparents(self):
+        other = Decision.objects.create(title="Self-host", created_by=self.member)
+        self.child.parents.add(other)
+        grandchild = Decision.objects.create(title="Drop index", created_by=self.member)
+        grandchild.parents.add(self.child)
         response = self.client.post(reverse("tracker:decision_delete", args=[self.child.pk]), {"name": "Add indexes"}, secure=True)
         self.assertEqual(response.status_code, 302)
-        grandchild.refresh_from_db()
-        self.assertEqual(grandchild.parent, self.root)
+        self.assertEqual(set(grandchild.parents.all()), {self.root, other})
+        self.assertFalse(Decision.parents.through.objects.filter(to_decision_id=self.child.pk).exists())
 
     def test_filter_by_status(self):
         self.child.status = Decision.STATUS_ABANDONED
@@ -172,6 +209,50 @@ class DecisionTests(TestCase):
         self.assertEqual(list(response.context["decisions"]), [self.child])
         response = self.client.get(reverse("tracker:decisions_list") + "?status=ongoing", secure=True)
         self.assertEqual(list(response.context["decisions"]), [self.root])
+
+    def _export_rows(self, query=""):
+        response = self.client.get(reverse("tracker:decisions_export_csv") + query, secure=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response["Content-Type"].startswith("text/csv"))
+        self.assertIn("attachment;", response["Content-Disposition"])
+        return list(csv.DictReader(io.StringIO(response.content.decode("utf-8-sig"))))
+
+    def test_export_csv_includes_every_decision(self):
+        rows = self._export_rows()
+        self.assertEqual([r["title"] for r in rows], ["Use MongoDB", "Add indexes"])
+        self.assertEqual(rows[1]["parent_ids"], str(self.root.pk))
+        self.assertEqual(rows[1]["parent_titles"], "Use MongoDB")
+        self.assertEqual(rows[0]["created_by"], "Alex")
+
+    def test_export_csv_honours_list_filters(self):
+        self.child.status = Decision.STATUS_ABANDONED
+        self.child.save()
+        rows = self._export_rows("?status=abandoned")
+        self.assertEqual([r["id"] for r in rows], [str(self.child.pk)])
+        self.assertEqual(rows[0]["status"], "Abandoned")
+        self.assertEqual([r["title"] for r in self._export_rows("?q=mongo")], ["Use MongoDB"])
+
+    def test_export_csv_neutralises_formulas(self):
+        Decision.objects.create(title="=HYPERLINK(\"http://x\")", created_by=self.member)
+        titles = [r["title"] for r in self._export_rows("?q=HYPERLINK")]
+        self.assertEqual(titles, ["'=HYPERLINK(\"http://x\")"])
+
+    def test_list_offers_filtered_export_only_when_filtering(self):
+        response = self.client.get(reverse("tracker:decisions_list"), secure=True)
+        self.assertNotContains(response, "filtered (CSV)")
+        response = self.client.get(reverse("tracker:decisions_list") + "?status=ongoing", secure=True)
+        self.assertContains(response, reverse("tracker:decisions_export_csv") + "?status=ongoing")
+
+    def test_explorer_and_list_show_every_parent(self):
+        other = Decision.objects.create(title="Self-host", start_date=days(1), created_by=self.member)
+        self.child.parents.add(other)
+        response = self.client.get(reverse("tracker:decisions_list"), secure=True)
+        data = {d["id"]: d for d in response.context["explorer"]}
+        self.assertEqual(data[str(self.root.pk)]["parents"], [])
+        self.assertEqual(set(data[str(self.child.pk)]["parents"]), {str(self.root.pk), str(other.pk)})
+        self.assertContains(response, "Follows “Use MongoDB”, “Self-host”")
+        response = self.client.get(reverse("tracker:decision_detail", args=[self.child.pk]), secure=True)
+        self.assertContains(response, other.get_absolute_url())
 
     def test_pages_render(self):
         for url in [
@@ -184,6 +265,56 @@ class DecisionTests(TestCase):
         ]:
             response = self.client.get(url, secure=True)
             self.assertEqual(response.status_code, 200, url)
+
+
+class DecisionParentsMigrationTests(TransactionTestCase):
+    """0014 must carry documents written under the single-parent schema over."""
+
+    before = [("tracker", "0013_decision_status")]
+    after = [("tracker", "0014_decision_multiple_parents")]
+
+    def migrate(self, target):
+        executor = MigrationExecutor(connection)
+        executor.migrate(target)
+        return executor.loader.project_state(target).apps
+
+    def tearDown(self):
+        self.migrate(MigrationExecutor(connection).loader.graph.leaf_nodes())
+
+    def test_single_parent_documents_become_parent_links(self):
+        apps = self.migrate(self.before)
+        OldMember = apps.get_model("tracker", "Member")
+        OldDecision = apps.get_model("tracker", "Decision")
+        member = OldMember.objects.create(name="Alex")
+        root = OldDecision.objects.create(title="Root", created_by=member)
+        child = OldDecision.objects.create(title="Child", created_by=member, parent=root)
+        orphan = OldDecision.objects.create(title="Orphan", created_by=member)
+        # Shapes older or hand-edited data can have: a parent id pointing at a
+        # deleted decision, and a document saved without a status field.
+        decisions = connection.database["tracker_decision"]
+        decisions.update_one({"_id": orphan.pk}, {"$set": {"parent_id": ObjectId()}})
+        now = timezone.now()
+        legacy = decisions.insert_one({
+            "title": "Legacy", "description": "", "motivation": "", "rollback_reasons": "",
+            "start_date": datetime.datetime.combine(days(0), datetime.time()), "end_date": None,
+            "parent_id": child.pk, "created_by_id": member.pk, "created_at": now, "updated_at": now,
+        }).inserted_id
+
+        apps = self.migrate(self.after)
+        NewDecision = apps.get_model("tracker", "Decision")
+        self.assertEqual(list(NewDecision.objects.get(pk=child.pk).parents.values_list("pk", flat=True)), [root.pk])
+        self.assertEqual(list(NewDecision.objects.get(pk=legacy).parents.values_list("pk", flat=True)), [child.pk])
+        self.assertFalse(NewDecision.objects.get(pk=orphan.pk).parents.exists())
+        self.assertFalse(NewDecision.objects.get(pk=root.pk).parents.exists())
+        self.assertEqual(NewDecision.objects.get(pk=legacy).status, "ongoing")
+        self.assertEqual(decisions.count_documents({"parent_id": {"$exists": True}}), 0)
+
+        # Rolling back keeps a single parent per decision.
+        apps = self.migrate(self.before)
+        OldDecision = apps.get_model("tracker", "Decision")
+        self.assertEqual(OldDecision.objects.get(pk=child.pk).parent_id, root.pk)
+        self.assertEqual(OldDecision.objects.get(pk=legacy).parent_id, child.pk)
+        self.assertIsNone(OldDecision.objects.get(pk=orphan.pk).parent_id)
 
 
 class ViewSmokeTests(TestCase):

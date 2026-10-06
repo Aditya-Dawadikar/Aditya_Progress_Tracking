@@ -103,3 +103,11 @@ automatically in `config/settings.py` — worth knowing if you fork this:
 environment and make its `MONGO_PRIVATE_URL` available to this application.
 At startup, `entrypoint.sh` runs the Django migrations against MongoDB.
 
+**Decision schema checks:** decisions can have several parents (stored as
+links in `tracker_decision_parents`; migration `0014` converts the older
+single `parent_id` field). `python manage.py check_decisions` is a read-only
+report on whether the stored decision documents fit the current schema —
+run it against production before deploying a schema change (it says what the
+pending migration will convert) and again afterwards. It exits non-zero if
+anything would break the decisions UI.
+

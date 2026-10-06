@@ -331,8 +331,9 @@ class Meeting(models.Model):
 
 
 class Decision(models.Model):
-    """A recorded decision. Decisions chain together via ``parent`` so a later
-    decision can be traced back through the ones that led to it."""
+    """A recorded decision. Decisions link to the earlier decisions that led to
+    them via ``parents`` (zero or more), forming a graph a later decision can be
+    traced back through."""
 
     STATUS_ONGOING = "ongoing"
     STATUS_COMPLETED = "completed"
@@ -351,9 +352,7 @@ class Decision(models.Model):
     rollback_reasons = models.TextField(blank=True)
     start_date = models.DateField(default=timezone.localdate)
     end_date = models.DateField(null=True, blank=True)
-    parent = models.ForeignKey(
-        "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="children"
-    )
+    parents = models.ManyToManyField("self", symmetrical=False, blank=True, related_name="children")
     created_by = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="decisions_created")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -375,19 +374,40 @@ class Decision(models.Model):
     def is_closed(self):
         return self.status != self.STATUS_ONGOING
 
-    def ancestors(self):
-        """Parents from the root down to (but excluding) this decision."""
-        chain, seen, node = [], {self.pk}, self.parent
-        while node is not None and node.pk not in seen:
-            chain.append(node)
-            seen.add(node.pk)
-            node = node.parent
-        return list(reversed(chain))
+    @staticmethod
+    def with_parents(decisions):
+        """Evaluate ``decisions`` and set ``parent_list`` on each one (sorted by
+        start date) using two queries, since MongoDB can't prefetch_related."""
+        decisions = list(decisions)
+        links = list(
+            Decision.parents.through.objects.filter(from_decision_id__in=[d.pk for d in decisions])
+            .values_list("from_decision_id", "to_decision_id")
+        )
+        parents = {p.pk: p for p in Decision.objects.filter(pk__in={pk for _, pk in links})}
+        by_child = {}
+        for child_pk, parent_pk in links:
+            if parent_pk in parents:
+                by_child.setdefault(child_pk, []).append(parents[parent_pk])
+        for d in decisions:
+            d.parent_list = sorted(by_child.get(d.pk, []), key=lambda p: (p.start_date, p.title))
+        return decisions
 
-    def descendant_ids(self):
+    def ancestor_ids(self):
+        """Every decision reachable by following parent links (excluding this one)."""
+        Link = Decision.parents.through
         ids, frontier = set(), [self.pk]
         while frontier:
-            child_ids = list(Decision.objects.filter(parent_id__in=frontier).values_list("pk", flat=True))
-            frontier = [pk for pk in child_ids if pk not in ids]
+            parent_ids = Link.objects.filter(from_decision_id__in=frontier).values_list("to_decision_id", flat=True)
+            frontier = [pk for pk in set(parent_ids) if pk not in ids and pk != self.pk]
+            ids.update(frontier)
+        return ids
+
+    def descendant_ids(self):
+        """Every decision reachable by following child links (excluding this one)."""
+        Link = Decision.parents.through
+        ids, frontier = set(), [self.pk]
+        while frontier:
+            child_ids = Link.objects.filter(to_decision_id__in=frontier).values_list("from_decision_id", flat=True)
+            frontier = [pk for pk in set(child_ids) if pk not in ids and pk != self.pk]
             ids.update(frontier)
         return ids
